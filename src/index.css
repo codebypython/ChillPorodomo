@@ -182,3 +182,95 @@ button,
     min-width: 44px;
   }
 }
+
+/* Invisible buttons - only appear on hover/touch */
+.btn-invisible {
+  opacity: 0;
+  transform: scale(0.9);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: auto;
+}
+
+/* Desktop: Show on hover */
+@media (hover: hover) and (pointer: fine) {
+  .btn-invisible-group:hover .btn-invisible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .btn-invisible:hover {
+    opacity: 1 !important;
+    transform: scale(1.05) !important;
+  }
+}
+
+/* Mobile: Show on touch and stay visible briefly */
+@media (hover: none) and (pointer: coarse) {
+  .btn-invisible {
+    opacity: 0.3; /* Slightly visible for discoverability */
+  }
+
+  .btn-invisible:active,
+  .btn-invisible:focus {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* Touch-activated visibility */
+  .btn-invisible-group:active .btn-invisible,
+  .btn-invisible-group.touched .btn-invisible {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Floating button specific styles */
+.floating-btn {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.floating-btn:hover {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.floating-btn:active {
+  transform: scale(0.95);
+}
+
+/* Header button specific styles */
+.header-btn {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.header-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Fade-in animation for buttons */
+@keyframes fadeInButtons {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.btn-fade-in {
+  animation: fadeInButtons 0.4s ease-out forwards;
+}

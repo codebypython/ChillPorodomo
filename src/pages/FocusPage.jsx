@@ -417,27 +417,33 @@ function FocusPage() {
         ></div>
       )}
 
-      {/* Floating buttons when UI hidden - with safe area */}
+      {/* Floating buttons when UI hidden - invisible until hover/touch */}
       {isUIHidden && (
-        <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
+        <div
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-50 flex flex-col gap-1.5 btn-invisible-group"
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingRight: "env(safe-area-inset-right)",
+          }}
+        >
           <button
             onClick={() => setIsUIHidden(false)}
-            className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all"
+            className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
             title="Hiện giao diện (ESC)"
           >
-            <Eye size={24} />
+            <Eye size={20} />
           </button>
           <button
             onClick={() => setShowTimerWhenHidden(!showTimerWhenHidden)}
-            className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all"
+            className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
             title={showTimerWhenHidden ? "Ẩn đồng hồ" : "Hiện đồng hồ"}
           >
-            <Clock size={20} />
+            <Clock size={18} />
           </button>
           {(backgroundImage || backgroundVideo) && (
             <button
               onClick={toggleBackgroundMode}
-              className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all"
+              className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
               title={
                 backgroundMode === "fit"
                   ? "Chế độ: Fit → Click để Fill"
@@ -445,9 +451,9 @@ function FocusPage() {
               }
             >
               {backgroundMode === "fit" ? (
-                <Maximize2 size={20} className="text-purple-400" />
+                <Maximize2 size={18} className="text-purple-300" />
               ) : (
-                <Minimize2 size={20} className="text-green-400" />
+                <Minimize2 size={18} className="text-green-300" />
               )}
             </button>
           )}
@@ -481,28 +487,25 @@ function FocusPage() {
           paddingRight: "env(safe-area-inset-right)",
         }}
       >
-        {/* Header */}
-        <div className="p-4 flex items-center justify-between flex-shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
+        {/* Header - Invisible buttons group */}
+        <div className="p-2 sm:p-4 flex items-center justify-between flex-shrink-0 btn-invisible-group">
+          <button
             onClick={() => {
               audioManager.stopAll();
               navigate("/");
             }}
-            className="bg-white bg-opacity-90 hover:bg-opacity-100"
+            className="btn-invisible header-btn p-2 rounded-lg text-white"
+            title="Quay lại trang chủ"
           >
-            <ArrowLeft size={20} />
-          </Button>
+            <ArrowLeft size={18} />
+          </button>
 
-          <div className="flex space-x-2">
+          <div className="flex gap-1.5 sm:gap-2">
             {/* Background Mode Toggle */}
             {(backgroundImage || backgroundVideo) && (
-              <Button
-                variant="secondary"
-                size="sm"
+              <button
                 onClick={toggleBackgroundMode}
-                className="bg-white bg-opacity-90 hover:bg-opacity-100"
+                className="btn-invisible header-btn p-2 rounded-lg text-white"
                 title={
                   backgroundMode === "fit"
                     ? "Chế độ: Xem trọn vẹn (Fit) - Click để Full màn hình"
@@ -510,28 +513,26 @@ function FocusPage() {
                 }
               >
                 {backgroundMode === "fit" ? (
-                  <Maximize2 size={20} className="text-purple-600" />
+                  <Maximize2 size={18} className="text-purple-300" />
                 ) : (
-                  <Minimize2 size={20} className="text-green-600" />
+                  <Minimize2 size={18} className="text-green-300" />
                 )}
-              </Button>
+              </button>
             )}
-            <Button
-              variant="secondary"
-              size="sm"
+            <button
               onClick={() => toggleFullscreen()}
-              className="bg-white bg-opacity-90 hover:bg-opacity-100"
+              className="btn-invisible header-btn p-2 rounded-lg text-white"
+              title="Toàn màn hình"
             >
-              <Maximize size={20} />
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
+              <Maximize size={18} />
+            </button>
+            <button
               onClick={() => lockOrientation("landscape")}
-              className="bg-white bg-opacity-90 hover:bg-opacity-100"
+              className="btn-invisible header-btn p-2 rounded-lg text-white"
+              title="Khóa xoay ngang"
             >
-              <Smartphone size={20} />
-            </Button>
+              <Smartphone size={18} />
+            </button>
           </div>
         </div>
 
