@@ -33,7 +33,6 @@ import {
   lockOrientation,
   unlockOrientation,
 } from "../utils/fullscreen";
-import { useIOSVideoOptimization } from "../hooks/useIOSVideoOptimization";
 
 function FocusPage() {
   const navigate = useNavigate();
@@ -70,9 +69,6 @@ function FocusPage() {
 
   const timerRef = useRef(null);
   const breakTimerRef = useRef(null);
-
-  // iOS video optimization
-  const videoRef = useIOSVideoOptimization(backgroundVideo);
 
   // Load data on mount
   useEffect(() => {
@@ -321,33 +317,21 @@ function FocusPage() {
       className="min-h-screen relative overflow-hidden"
       style={{
         backgroundImage: backgroundImage ? `url(${backgroundImage})` : "none",
-        backgroundSize: "contain",
+        backgroundSize: "cover",
         backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
         backgroundColor:
-          backgroundImage || backgroundVideo ? "#000000" : "#f3f4f6",
+          backgroundImage || backgroundVideo ? "transparent" : "#f3f4f6",
       }}
     >
-      {/* Video background - Optimized for iOS Safari */}
+      {/* Video background */}
       {backgroundVideo && (
         <video
-          ref={videoRef}
           src={backgroundVideo}
-          className="absolute inset-0 w-full h-full"
-          style={{
-            objectFit: "contain",
-            objectPosition: "center",
-          }}
+          className="absolute inset-0 w-full h-full object-cover"
           autoPlay
           loop
           muted
           playsInline
-          preload="metadata"
-          controls={false}
-          disablePictureInPicture
-          disableRemotePlayback
-          x5-video-player-type="h5"
-          x5-video-player-fullscreen="true"
         />
       )}
 
