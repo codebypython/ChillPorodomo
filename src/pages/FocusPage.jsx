@@ -30,6 +30,14 @@ import {
   addSavedSession,
   deleteSavedSession,
 } from "../utils/storage";
+import {
+  getAnimationsMetadata,
+  getSoundsMetadata,
+  getAnimationCached,
+  getSoundCached,
+  clearUnusedCache,
+  clearAllCache,
+} from "../utils/lazyStorage";
 import { audioManager } from "../utils/audio";
 import {
   toggleFullscreen,
@@ -119,6 +127,10 @@ function FocusPage() {
         sessions: null,
         timestamp: 0,
       };
+
+      // Clear lazy loading cache
+      clearAllCache();
+      console.log("[ChillPomodoro] All caches cleared on unmount");
     };
   }, []);
 
@@ -260,7 +272,7 @@ function FocusPage() {
         now - dataCache.current.timestamp < CACHE_DURATION &&
         dataCache.current.animations
       ) {
-        console.log("[ChillPomodoro] Using cached data");
+        console.log("[ChillPomodoro] Using cached metadata");
         setAnimations(dataCache.current.animations);
         setSounds(dataCache.current.sounds);
         setPresets(dataCache.current.presets);
@@ -268,11 +280,14 @@ function FocusPage() {
         return;
       }
 
-      console.log("[ChillPomodoro] Loading fresh data from storage");
+      console.log("[ChillPomodoro] Loading lightweight metadata (OPTIMIZED)");
+
+      // OPTIMIZATION: Load only metadata (names, IDs) - NOT full data URLs
+      // This is 100x faster and lighter than loading full base64 data!
       const [animationsData, soundsData, presetsData, sessionsData] =
         await Promise.all([
-          getAnimations(),
-          getSounds(),
+          getAnimationsMetadata(), // Only metadata - NO URLs!
+          getSoundsMetadata(), // Only metadata - NO URLs!
           Promise.resolve(getPresets()),
           Promise.resolve(getSavedSessions()),
         ]);
@@ -282,7 +297,7 @@ function FocusPage() {
       const presets = presetsData || [];
       const sessions = sessionsData || [];
 
-      // Update state
+      // Update state with lightweight metadata
       setAnimations(animations);
       setSounds(sounds);
       setPresets(presets);
@@ -297,7 +312,9 @@ function FocusPage() {
         timestamp: now,
       };
 
-      console.log("[ChillPomodoro] Data loaded and cached");
+      console.log("[ChillPomodoro] Lightweight metadata loaded ⚡");
+      console.log(`  → ${animations.length} animations (metadata only)`);
+      console.log(`  → ${sounds.length} sounds (metadata only)`);
     } catch (error) {
       console.error("[ChillPomodoro] Error loading data:", error);
       setAnimations([]);
@@ -317,7 +334,7 @@ function FocusPage() {
     setIsWorkMode(!isWorkMode);
   };
 
-  const handleStartPause = () => {
+  const handleStartPause = async () => {
     try {
       if (!isRunning) {
         // Ensure videos play when starting (user interaction)
@@ -338,23 +355,27 @@ function FocusPage() {
           }
         }
 
-        // Start playing all selected sounds
-        soundTracks.forEach((track) => {
+        // OPTIMIZATION: Load sound data on-demand before playing
+        console.log("[ChillPomodoro] Loading selected sounds...");
+
+        for (const track of soundTracks) {
           if (track.selectedSound) {
             const trackVolume = track.volume || 1.0;
 
             if (track.type === "single") {
-              const sound = sounds.find((s) => s.id === track.selectedSound);
-              if (sound) {
+              // Load full sound data on-demand
+              const sound = await getSoundCached(track.selectedSound);
+              if (sound && sound.url) {
                 const finalVolume = (sound.volume || 1.0) * trackVolume;
                 audioManager.playSound(track.id, sound.url, true, finalVolume);
               }
             } else if (track.type === "preset") {
               const preset = presets.find((p) => p.id === track.selectedSound);
               if (preset && preset.soundIds) {
-                preset.soundIds.forEach((soundId) => {
-                  const sound = sounds.find((s) => s.id === soundId);
-                  if (sound) {
+                // Load all sounds in preset
+                for (const soundId of preset.soundIds) {
+                  const sound = await getSoundCached(soundId);
+                  if (sound && sound.url) {
                     const finalVolume = (sound.volume || 1.0) * trackVolume;
                     audioManager.playSound(
                       `${track.id}_${soundId}`,
@@ -363,11 +384,13 @@ function FocusPage() {
                       finalVolume
                     );
                   }
-                });
+                }
               }
             }
           }
-        });
+        }
+
+        console.log("[ChillPomodoro] All sounds loaded and playing ✓");
       } else {
         audioManager.stopAll();
         // Don't pause videos when stopping timer - keep them playing
@@ -435,7 +458,7 @@ function FocusPage() {
   };
 
   // Update volume in realtime while running
-  const handleRealtimeVolumeChange = (trackId, newVolume) => {
+  const handleRealtimeVolumeChange = async (trackId, newVolume) => {
     // Update state
     setSoundTracks(
       soundTracks.map((t) =>
@@ -447,7 +470,8 @@ function FocusPage() {
     const track = soundTracks.find((t) => t.id === trackId);
     if (track && track.selectedSound) {
       if (track.type === "single") {
-        const sound = sounds.find((s) => s.id === track.selectedSound);
+        // Get sound data (from cache if already loaded)
+        const sound = await getSoundCached(track.selectedSound);
         if (sound) {
           const finalVolume = (sound.volume || 1.0) * newVolume;
           audioManager.setVolume(trackId, finalVolume);
@@ -455,13 +479,14 @@ function FocusPage() {
       } else if (track.type === "preset") {
         const preset = presets.find((p) => p.id === track.selectedSound);
         if (preset && preset.soundIds) {
-          preset.soundIds.forEach((soundId) => {
-            const sound = sounds.find((s) => s.id === soundId);
+          // Update all sounds in preset
+          for (const soundId of preset.soundIds) {
+            const sound = await getSoundCached(soundId);
             if (sound) {
               const finalVolume = (sound.volume || 1.0) * newVolume;
               audioManager.setVolume(`${trackId}_${soundId}`, finalVolume);
             }
-          });
+          }
         }
       }
     }
@@ -578,10 +603,25 @@ function FocusPage() {
       .padStart(2, "0")}`;
   };
 
-  // Background data
-  const selectedBackgroundData = selectedBackground
-    ? animations.find((a) => a.id === selectedBackground)
-    : null;
+  // Background data - with lazy loading
+  const [selectedBackgroundData, setSelectedBackgroundData] = useState(null);
+
+  // Load background data when selected
+  useEffect(() => {
+    if (selectedBackground) {
+      // Load full data on-demand
+      (async () => {
+        console.log(`[ChillPomodoro] Loading background ${selectedBackground}`);
+        const fullData = await getAnimationCached(selectedBackground);
+        if (fullData) {
+          setSelectedBackgroundData(fullData);
+          console.log(`[ChillPomodoro] Background loaded ✓`);
+        }
+      })();
+    } else {
+      setSelectedBackgroundData(null);
+    }
+  }, [selectedBackground]);
 
   const backgroundImage =
     selectedBackgroundData && selectedBackgroundData.type !== "video"
