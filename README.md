@@ -5,25 +5,32 @@
 ## ✨ Tính năng
 
 ### 🎨 Kho Animation
+
 - Thêm, sửa, xóa ảnh, GIF và **Video MP4**
 - Hỗ trợ upload file (tối đa 50MB) hoặc nhập URL
 - Xem trước trực tiếp
 - Tương thích tốt với iOS (GIF và Video ổn định)
 - Sử dụng IndexedDB để lưu file lớn
 
-### 🎵 Kho Sound
+### 🎵 Kho Sound ⭐ **NEW: 3 CÁCH THÊM ÂM THANH**
+
+- **📱 Tải file lên**: Upload từ thiết bị (MP3, WAV, OGG, M4A, AAC)
+- **🔗 Link URL**: Nhập link trực tiếp đến file âm thanh
+- **☁️ Google Drive**: Tải file từ Google Drive (file lớn, chia sẻ dễ)
 - Quản lý âm thanh (CRUD)
 - Điều chỉnh âm lượng cho từng âm thanh
-- Upload file audio (MP3, WAV, OGG - tối đa 50MB) hoặc nhập URL
 - Nghe thử trực tiếp
 - Sử dụng IndexedDB để lưu file lớn
+- ✅ **Fixed: Chọn file MP3 trên iPhone/iPad**
 
 ### 🎛️ Quản lý Preset
+
 - Tạo preset kết hợp nhiều âm thanh
 - Phát nhiều âm thanh đồng thời
 - Chỉnh sửa và xóa preset dễ dàng
 
 ### ⏱️ Chế độ Focus
+
 - Timer Pomodoro tùy chỉnh
 - Chọn background từ kho animation (ảnh/GIF/video)
 - Phát nhiều âm thanh/preset cùng lúc
@@ -42,7 +49,8 @@
 ## 🚀 Cài đặt và chạy
 
 ### Yêu cầu
-- Node.js 18+ 
+
+- Node.js 18+
 - npm hoặc yarn
 
 ### Cài đặt
@@ -67,16 +75,19 @@ npm run preview
 
 1. Tạo tài khoản tại [vercel.com](https://vercel.com)
 2. Cài đặt Vercel CLI:
+
 ```bash
 npm install -g vercel
 ```
 
 3. Deploy:
+
 ```bash
 vercel
 ```
 
 hoặc đơn giản hơn:
+
 - Push code lên GitHub
 - Import repository vào Vercel
 - Vercel sẽ tự động deploy
@@ -84,14 +95,17 @@ hoặc đơn giản hơn:
 ### Deploy lên Netlify
 
 1. Build project:
+
 ```bash
 npm run build
 ```
 
 2. Tại [netlify.com](https://netlify.com):
+
 - Drag & drop thư mục `dist` vào Netlify
 
 hoặc sử dụng Netlify CLI:
+
 ```bash
 npm install -g netlify-cli
 netlify deploy --prod
@@ -100,11 +114,13 @@ netlify deploy --prod
 ### Deploy lên GitHub Pages
 
 1. Cài đặt gh-pages:
+
 ```bash
 npm install --save-dev gh-pages
 ```
 
 2. Thêm vào `package.json`:
+
 ```json
 {
   "homepage": "https://[username].github.io/ChillPorodomo",
@@ -116,14 +132,16 @@ npm install --save-dev gh-pages
 ```
 
 3. Cập nhật `vite.config.js`:
+
 ```js
 export default defineConfig({
-  base: '/ChillPorodomo/',
+  base: "/ChillPorodomo/",
   // ... rest of config
-})
+});
 ```
 
 4. Deploy:
+
 ```bash
 npm run deploy
 ```
@@ -146,34 +164,39 @@ npm run deploy
 Ứng dụng sử dụng hai phương pháp lưu trữ:
 
 ### IndexedDB (cho files lớn):
+
 - ✅ Ảnh, GIF, Video (lên đến 50MB)
 - ✅ Âm thanh (lên đến 50MB)
 - ✅ Hỗ trợ upload file từ máy tính
 
 ### LocalStorage (cho metadata):
+
 - Preset đã tạo
 - Tiến trình đã lưu
 - Cài đặt
 
-**Lưu ý**: 
+**Lưu ý**:
+
 - Dữ liệu được lưu trực tiếp trên trình duyệt, không cần server
 - Hỗ trợ upload file lớn lên đến 50MB
 - Xem thêm chi tiết trong `INDEXEDDB_GUIDE.md`
 
 ## 🎯 Cách sử dụng
 
-1. **Chuẩn bị**: 
+1. **Chuẩn bị**:
+
    - Thêm ảnh/GIF vào Kho Animation
    - Thêm âm thanh vào Kho Sound
    - (Tùy chọn) Tạo Preset kết hợp nhiều âm thanh
 
 2. **Bắt đầu Focus**:
+
    - Chọn background
    - Chọn âm thanh/preset
    - Thiết lập thời gian làm việc và nghỉ
    - Nhấn "Bắt đầu"
 
-3. **Lưu tiến trình**: 
+3. **Lưu tiến trình**:
    - Nhấn "Lưu tiến trình" để lưu cấu hình hiện tại
    - Tải lại bất cứ lúc nào
 
@@ -192,26 +215,21 @@ npm run deploy
 ## 📚 Documentation
 
 ### 🚀 Bắt đầu nhanh
-- `QUICK_START.md` - 🆕 Chạy dự án trong 3 bước
-- `README.md` - Tổng quan dự án
 
-### 📖 Hướng dẫn sử dụng
-- `FEATURES.md` - Chi tiết tất cả tính năng
-- `HIDE_UI_FEATURE.md` - Hướng dẫn tính năng "Ẩn giao diện"
-- `MOBILE_GUIDE.md` - 📱 Hướng dẫn sử dụng trên Mobile
+- `UPDATE_GUIDE.md` - ⭐ Hướng dẫn cập nhật & deploy dự án
 
-### 🚀 Deploy & Update
-- `UPDATE_GUIDE.md` - 🆕 ⭐ Hướng dẫn cập nhật dự án
-- `VERCEL_SETUP.md` - 🆕 Setup Vercel từng bước
-- `DEPLOYMENT.md` - Hướng dẫn deploy chi tiết các platform
+### 📱 Mobile & iOS (v2.2)
 
-### 🔧 Kỹ thuật
-- `OPTIMIZATION.md` - 🆕 Tối ưu hóa performance
-- `INDEXEDDB_GUIDE.md` - Hướng dẫn IndexedDB
-- `TROUBLESHOOTING.md` - Khắc phục sự cố
+- `IOS_FIX_GUIDE.md` - 🆕 ⭐ **Khắc phục lỗi iPhone + Tính năng Google Drive**
+  - Fix lỗi chọn file MP3 trên iPhone
+  - Hướng dẫn 3 cách thêm âm thanh
+  - Tải file từ Google Drive
+  - Troubleshooting & Best practices
 
-### 📝 Khác
-- `CHANGELOG.md` - Lịch sử thay đổi
+### 📝 Changelog & Release Notes
+
+- `CHANGELOG.md` - 🆕 Lịch sử thay đổi chi tiết (v1.0 → v2.2)
+- `VERSION_2.2_SUMMARY.md` - 🆕 ⭐ Release notes v2.2.0
 
 ## 📝 License
 
@@ -224,4 +242,3 @@ Phát triển bởi AI Assistant với yêu cầu từ người dùng.
 ---
 
 **Enjoy your focused work sessions! 🎯✨**
-

@@ -1,131 +1,152 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Plus, Edit2, Trash2, Image as ImageIcon, Film, Loader } from 'lucide-react'
-import Button from '../components/Button'
-import Modal from '../components/Modal'
-import { getAnimations, addAnimation, updateAnimation, deleteAnimation } from '../utils/storage'
-import { fileToBase64, isFileSizeValid } from '../utils/indexedDB'
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  Plus,
+  Edit2,
+  Trash2,
+  Image as ImageIcon,
+  Film,
+  Loader,
+} from "lucide-react";
+import Button from "../components/Button";
+import Modal from "../components/Modal";
+import {
+  getAnimations,
+  addAnimation,
+  updateAnimation,
+  deleteAnimation,
+} from "../utils/storage";
+import { fileToBase64, isFileSizeValid } from "../utils/indexedDB";
 
 function AnimationLibrary() {
-  const navigate = useNavigate()
-  const [animations, setAnimations] = useState([])
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingAnimation, setEditingAnimation] = useState(null)
-  const [formData, setFormData] = useState({ name: '', url: '', type: 'image' })
-  const [isLoading, setIsLoading] = useState(false)
-  const [isUploading, setIsUploading] = useState(false)
-  
+  const navigate = useNavigate();
+  const [animations, setAnimations] = useState([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAnimation, setEditingAnimation] = useState(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    url: "",
+    type: "image",
+  });
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+
   useEffect(() => {
-    loadAnimations()
-  }, [])
-  
+    loadAnimations();
+  }, []);
+
   const loadAnimations = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      const data = await getAnimations()
-      setAnimations(data)
+      const data = await getAnimations();
+      setAnimations(data);
     } catch (error) {
-      console.error('Error loading animations:', error)
-      alert('Lỗi khi tải danh sách animation')
+      console.error("Error loading animations:", error);
+      alert("Lỗi khi tải danh sách animation");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-  
+  };
+
   const handleOpenModal = (animation = null) => {
     if (animation) {
-      setEditingAnimation(animation)
-      setFormData({ name: animation.name, url: animation.url, type: animation.type })
+      setEditingAnimation(animation);
+      setFormData({
+        name: animation.name,
+        url: animation.url,
+        type: animation.type,
+      });
     } else {
-      setEditingAnimation(null)
-      setFormData({ name: '', url: '', type: 'image' })
+      setEditingAnimation(null);
+      setFormData({ name: "", url: "", type: "image" });
     }
-    setIsModalOpen(true)
-  }
-  
+    setIsModalOpen(true);
+  };
+
   const handleCloseModal = () => {
-    setIsModalOpen(false)
-    setEditingAnimation(null)
-    setFormData({ name: '', url: '', type: 'image' })
-  }
-  
+    setIsModalOpen(false);
+    setEditingAnimation(null);
+    setFormData({ name: "", url: "", type: "image" });
+  };
+
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!formData.name || !formData.url) {
-      alert('Vui lòng điền đầy đủ thông tin')
-      return
+      alert("Vui lòng điền đầy đủ thông tin");
+      return;
     }
-    
-    setIsUploading(true)
+
+    setIsUploading(true);
     try {
       if (editingAnimation) {
-        await updateAnimation(editingAnimation.id, formData)
+        await updateAnimation(editingAnimation.id, formData);
       } else {
-        await addAnimation(formData)
+        await addAnimation(formData);
       }
-      
-      await loadAnimations()
-      handleCloseModal()
-      alert('Lưu thành công!')
+
+      await loadAnimations();
+      handleCloseModal();
+      alert("Lưu thành công!");
     } catch (error) {
-      console.error('Error saving animation:', error)
-      alert('Lỗi khi lưu animation. Vui lòng thử lại.')
+      console.error("Error saving animation:", error);
+      alert("Lỗi khi lưu animation. Vui lòng thử lại.");
     } finally {
-      setIsUploading(false)
+      setIsUploading(false);
     }
-  }
-  
+  };
+
   const handleDelete = async (id) => {
-    if (window.confirm('Bạn có chắc muốn xóa animation này?')) {
+    if (window.confirm("Bạn có chắc muốn xóa animation này?")) {
       try {
-        await deleteAnimation(id)
-        await loadAnimations()
+        await deleteAnimation(id);
+        await loadAnimations();
       } catch (error) {
-        console.error('Error deleting animation:', error)
-        alert('Lỗi khi xóa animation')
+        console.error("Error deleting animation:", error);
+        alert("Lỗi khi xóa animation");
       }
     }
-  }
-  
+  };
+
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    
+    const file = e.target.files[0];
+    if (!file) return;
+
     // Validate file size (max 50MB)
     if (!isFileSizeValid(file, 50)) {
-      alert('File quá lớn! Vui lòng chọn file nhỏ hơn 50MB')
-      e.target.value = ''
-      return
+      alert("File quá lớn! Vui lòng chọn file nhỏ hơn 50MB");
+      e.target.value = "";
+      return;
     }
-    
+
     // Detect file type
-    let fileType = 'image'
-    if (file.type.startsWith('video/')) {
-      fileType = 'video'
-    } else if (file.type === 'image/gif') {
-      fileType = 'gif'
+    let fileType = "image";
+    if (file.type.startsWith("video/")) {
+      fileType = "video";
+    } else if (file.type === "image/gif") {
+      fileType = "gif";
     }
-    
-    setIsUploading(true)
+
+    setIsUploading(true);
     try {
-      const base64 = await fileToBase64(file)
-      setFormData({ 
-        ...formData, 
+      const base64 = await fileToBase64(file);
+      setFormData({
+        ...formData,
         url: base64,
-        type: fileType
-      })
-      alert('Upload thành công! Vui lòng nhấn "Thêm mới" để lưu.')
+        type: fileType,
+      });
+      alert('Upload thành công! Vui lòng nhấn "Thêm mới" để lưu.');
     } catch (error) {
-      console.error('Error uploading file:', error)
-      alert('Lỗi khi upload file')
+      console.error("Error uploading file:", error);
+      alert("Lỗi khi upload file");
     } finally {
-      setIsUploading(false)
+      setIsUploading(false);
     }
-  }
-  
+  };
+
   const renderMediaPreview = (animation) => {
-    if (animation.type === 'video') {
+    if (animation.type === "video") {
       return (
         <video
           src={animation.url}
@@ -135,10 +156,10 @@ function AnimationLibrary() {
           autoPlay
           playsInline
           onError={(e) => {
-            e.target.style.display = 'none'
+            e.target.style.display = "none";
           }}
         />
-      )
+      );
     } else {
       return (
         <img
@@ -146,36 +167,30 @@ function AnimationLibrary() {
           alt={animation.name}
           className="w-full h-full object-cover"
           onError={(e) => {
-            e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E'
+            e.target.src =
+              'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3ENo Image%3C/text%3E%3C/svg%3E';
           }}
         />
-      )
+      );
     }
-  }
-  
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/')}
-            >
+            <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
               <ArrowLeft size={20} />
             </Button>
             <h1 className="text-4xl font-bold text-gray-800">Kho Animation</h1>
           </div>
-          <Button
-            onClick={() => handleOpenModal()}
-            size="md"
-          >
+          <Button onClick={() => handleOpenModal()} size="md">
             <Plus size={20} className="mr-2" />
             Thêm Animation
           </Button>
         </div>
-        
+
         {isLoading ? (
           <div className="flex items-center justify-center py-20">
             <Loader size={48} className="animate-spin text-purple-600" />
@@ -203,7 +218,7 @@ function AnimationLibrary() {
               >
                 <div className="aspect-video bg-gray-100 relative overflow-hidden">
                   {renderMediaPreview(animation)}
-                  {animation.type === 'video' && (
+                  {animation.type === "video" && (
                     <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white px-2 py-1 rounded-lg text-xs flex items-center">
                       <Film size={12} className="mr-1" />
                       Video
@@ -239,11 +254,11 @@ function AnimationLibrary() {
           </div>
         )}
       </div>
-      
+
       <Modal
         isOpen={isModalOpen}
         onClose={handleCloseModal}
-        title={editingAnimation ? 'Chỉnh sửa Animation' : 'Thêm Animation Mới'}
+        title={editingAnimation ? "Chỉnh sửa Animation" : "Thêm Animation Mới"}
         size="md"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -254,20 +269,24 @@ function AnimationLibrary() {
             <input
               type="text"
               value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, name: e.target.value })
+              }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
               placeholder="Ví dụ: Lofi Girl"
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Loại
             </label>
             <select
               value={formData.type}
-              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, type: e.target.value })
+              }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
             >
               <option value="image">Ảnh</option>
@@ -275,15 +294,17 @@ function AnimationLibrary() {
               <option value="video">Video MP4</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               URL hoặc Tải lên
             </label>
             <input
               type="text"
-              value={formData.url.startsWith('data:') ? '' : formData.url}
-              onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+              value={formData.url.startsWith("data:") ? "" : formData.url}
+              onChange={(e) =>
+                setFormData({ ...formData, url: e.target.value })
+              }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none mb-2"
               placeholder="https://example.com/image.gif"
               disabled={isUploading}
@@ -291,23 +312,27 @@ function AnimationLibrary() {
             <div className="text-center text-gray-500 text-sm mb-2">hoặc</div>
             <input
               type="file"
-              accept="image/*,video/mp4,video/webm"
+              accept="image/*,image/gif,image/jpeg,image/png,image/webp,video/mp4,video/webm,video/*"
               onChange={handleFileUpload}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"
               disabled={isUploading}
             />
             <p className="text-xs text-gray-500 mt-2">
               Hỗ trợ: Ảnh, GIF, Video MP4/WebM (tối đa 50MB)
+              <br />
+              <span className="text-purple-600 font-medium">
+                ✓ Hoạt động trên iPhone/iPad
+              </span>
             </p>
           </div>
-          
+
           {formData.url && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Xem trước
               </label>
               <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
-                {formData.type === 'video' ? (
+                {formData.type === "video" ? (
                   <video
                     src={formData.url}
                     className="w-full h-full object-cover"
@@ -316,7 +341,7 @@ function AnimationLibrary() {
                     muted
                     playsInline
                     onError={(e) => {
-                      console.error('Video preview error')
+                      console.error("Video preview error");
                     }}
                   />
                 ) : (
@@ -325,33 +350,47 @@ function AnimationLibrary() {
                     alt="Preview"
                     className="w-full h-full object-cover"
                     onError={(e) => {
-                      e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EInvalid URL%3C/text%3E%3C/svg%3E'
+                      e.target.src =
+                        'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="100" height="100"%3E%3Crect fill="%23ddd" width="100" height="100"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EInvalid URL%3C/text%3E%3C/svg%3E';
                     }}
                   />
                 )}
               </div>
             </div>
           )}
-          
+
           <div className="flex space-x-4">
-            <Button type="submit" variant="primary" fullWidth disabled={isUploading}>
+            <Button
+              type="submit"
+              variant="primary"
+              fullWidth
+              disabled={isUploading}
+            >
               {isUploading ? (
                 <>
                   <Loader size={20} className="mr-2 animate-spin" />
                   Đang xử lý...
                 </>
+              ) : editingAnimation ? (
+                "Cập nhật"
               ) : (
-                editingAnimation ? 'Cập nhật' : 'Thêm mới'
+                "Thêm mới"
               )}
             </Button>
-            <Button type="button" variant="secondary" fullWidth onClick={handleCloseModal} disabled={isUploading}>
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              onClick={handleCloseModal}
+              disabled={isUploading}
+            >
               Hủy
             </Button>
           </div>
         </form>
       </Modal>
     </div>
-  )
+  );
 }
 
-export default AnimationLibrary
+export default AnimationLibrary;

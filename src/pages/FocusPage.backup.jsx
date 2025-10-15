@@ -14,11 +14,10 @@ import {
   ChevronDown,
   EyeOff,
   Eye,
-  Volume2,
-  Trash2,
 } from "lucide-react";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
+import FloatingTimer from "../components/FloatingTimer";
 import {
   getAnimations,
   getSounds,
@@ -63,14 +62,13 @@ function FocusPage() {
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [sessionName, setSessionName] = useState("");
 
-  // Hide UI State
+  // UI State
   const [isUIHidden, setIsUIHidden] = useState(false);
   const [showTimerWhenHidden, setShowTimerWhenHidden] = useState(false);
 
   const timerRef = useRef(null);
   const breakTimerRef = useRef(null);
 
-  // Load data on mount
   useEffect(() => {
     loadData();
 
@@ -93,12 +91,9 @@ function FocusPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isUIHidden, isRunning]);
 
-  // Update time left when work/break time changes
   useEffect(() => {
-    if (!isRunning) {
-      setTimeLeft(isWorkMode ? workTime * 60 : breakTime * 60);
-    }
-  }, [workTime, breakTime, isWorkMode, isRunning]);
+    setTimeLeft(isWorkMode ? workTime * 60 : breakTime * 60);
+  }, [workTime, breakTime, isWorkMode]);
 
   // Timer logic
   useEffect(() => {
@@ -106,6 +101,7 @@ function FocusPage() {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 11 && prev > 10) {
+            // Play ticking sound at 10s remaining
             audioManager.playTickingSound();
           }
 
@@ -156,24 +152,27 @@ function FocusPage() {
           Promise.resolve(getPresets()),
           Promise.resolve(getSavedSessions()),
         ]);
-
       setAnimations(animationsData || []);
       setSounds(soundsData || []);
       setPresets(presetsData || []);
       setSavedSessions(sessionsData || []);
     } catch (error) {
       console.error("Error loading data:", error);
+      // Set default empty arrays to prevent undefined errors
       setAnimations([]);
       setSounds([]);
       setPresets([]);
       setSavedSessions([]);
+      alert("Lỗi khi tải dữ liệu. Vui lòng thử lại hoặc kiểm tra console.");
     }
   };
 
   const handleTimerComplete = () => {
     setIsRunning(false);
     setShowBreakPopup(true);
-    setIsUIHidden(false);
+    setIsUIHidden(false); // Hiện lại UI khi hết giờ
+
+    // Switch mode
     setIsWorkMode(!isWorkMode);
   };
 
@@ -183,19 +182,20 @@ function FocusPage() {
       soundTracks.forEach((track) => {
         if (track.selectedSound) {
           const trackVolume = track.volume || 1.0;
-
           if (track.type === "single") {
             const sound = sounds.find((s) => s.id === track.selectedSound);
             if (sound) {
+              // Apply both sound's volume and track's volume
               const finalVolume = (sound.volume || 1.0) * trackVolume;
               audioManager.playSound(track.id, sound.url, true, finalVolume);
             }
           } else if (track.type === "preset") {
             const preset = presets.find((p) => p.id === track.selectedSound);
-            if (preset && preset.soundIds) {
+            if (preset) {
               preset.soundIds.forEach((soundId) => {
                 const sound = sounds.find((s) => s.id === soundId);
                 if (sound) {
+                  // Apply both sound's volume and track's volume
                   const finalVolume = (sound.volume || 1.0) * trackVolume;
                   audioManager.playSound(
                     `${track.id}_${soundId}`,
@@ -210,6 +210,7 @@ function FocusPage() {
         }
       });
     } else {
+      // Pause all sounds
       audioManager.stopAll();
     }
 
@@ -271,11 +272,7 @@ function FocusPage() {
 
   const handleLoadSession = (session) => {
     setSelectedBackground(session.background);
-    setSoundTracks(
-      session.soundTracks || [
-        { id: Date.now(), selectedSound: null, type: "single", volume: 1.0 },
-      ]
-    );
+    setSoundTracks(session.soundTracks);
     setWorkTime(session.workTime);
     setBreakTime(session.breakTime);
     setShowLoadModal(false);
@@ -297,7 +294,6 @@ function FocusPage() {
       .padStart(2, "0")}`;
   };
 
-  // Background data
   const selectedBackgroundData = selectedBackground
     ? animations.find((a) => a.id === selectedBackground)
     : null;
@@ -335,24 +331,24 @@ function FocusPage() {
         />
       )}
 
-      {/* Overlay for better readability */}
+      {/* Overlay for better readability - Ẩn khi UI hidden */}
       {(backgroundImage || backgroundVideo) && !isUIHidden && (
         <div className="absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm"></div>
       )}
 
-      {/* Floating buttons when UI hidden */}
+      {/* Timer nổi và controls khi UI hidden */}
       {isUIHidden && (
         <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
           <button
             onClick={() => setIsUIHidden(false)}
-            className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all"
-            title="Hiện giao diện (ESC)"
+            className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all backdrop-blur-sm hover:scale-110 transform duration-200"
+            title="Hiện giao diện (hoặc nhấn ESC)"
           >
             <Eye size={24} />
           </button>
           <button
             onClick={() => setShowTimerWhenHidden(!showTimerWhenHidden)}
-            className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all"
+            className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all backdrop-blur-sm hover:scale-110 transform duration-200"
             title={showTimerWhenHidden ? "Ẩn đồng hồ" : "Hiện đồng hồ"}
           >
             <Clock size={20} />
@@ -360,21 +356,16 @@ function FocusPage() {
         </div>
       )}
 
-      {/* Floating Timer when UI hidden and showTimerWhenHidden */}
+      {/* Floating Timer - hiển thị riêng */}
       {isUIHidden && showTimerWhenHidden && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
-          <div className="text-center">
-            <div className="text-8xl md:text-9xl font-bold text-white drop-shadow-2xl mb-4 animate-pulse">
-              {formatTime(timeLeft)}
-            </div>
-            <div className="text-2xl text-white drop-shadow-lg opacity-80">
-              {isWorkMode ? "Đang làm việc..." : "Đang nghỉ ngơi..."}
-            </div>
-          </div>
-        </div>
+        <FloatingTimer
+          timeLeft={timeLeft}
+          isWorkMode={isWorkMode}
+          onShowUI={() => setIsUIHidden(false)}
+        />
       )}
 
-      {/* Main Content */}
+      {/* Content */}
       <div
         className={`relative z-10 min-h-screen flex flex-col transition-opacity duration-500 ${
           isUIHidden ? "opacity-0 pointer-events-none" : "opacity-100"
@@ -417,7 +408,7 @@ function FocusPage() {
         {/* Main Content */}
         <div className="flex-1 flex items-center justify-center p-2 sm:p-4">
           <div className="w-full max-w-4xl">
-            {/* Timer Display */}
+            {/* Timer */}
             <div className="text-center mb-6 sm:mb-12">
               <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 sm:mb-4 drop-shadow-lg px-2">
                 {isWorkMode ? "Thời gian làm việc" : "Thời gian nghỉ ngơi"}
@@ -443,22 +434,23 @@ function FocusPage() {
                 </Button>
                 <Button
                   onClick={handleReset}
-                  variant="secondary"
                   size="lg"
-                  className="min-w-[100px] sm:min-w-[120px] flex-shrink-0"
+                  variant="secondary"
+                  className="flex-shrink-0"
                 >
                   <RotateCcw size={20} className="sm:mr-2" />
-                  <span className="hidden sm:inline">Đặt lại</span>
+                  <span className="hidden sm:inline">Reset</span>
                 </Button>
                 {isRunning && (
                   <Button
                     onClick={() => setIsUIHidden(true)}
-                    variant="secondary"
                     size="lg"
-                    className="min-w-[100px] sm:min-w-[120px] flex-shrink-0"
+                    variant="secondary"
+                    title="Ẩn giao diện để tập trung (ESC để hiện lại)"
+                    className="flex-shrink-0"
                   >
                     <EyeOff size={20} className="sm:mr-2" />
-                    <span className="hidden sm:inline">Ẩn UI</span>
+                    <span className="hidden sm:inline">Ẩn giao diện</span>
                   </Button>
                 )}
               </div>
@@ -469,7 +461,7 @@ function FocusPage() {
               {/* Background Selection */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                  Background
+                  Chọn Background
                 </label>
                 <div className="relative">
                   <select
@@ -495,18 +487,17 @@ function FocusPage() {
 
               {/* Sound Tracks */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-xs sm:text-sm font-medium text-gray-700">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700">
                     Âm thanh
                   </label>
                   <Button
                     onClick={handleAddSoundTrack}
-                    variant="secondary"
                     size="sm"
-                    className="text-xs sm:text-sm"
+                    variant="secondary"
                   >
-                    <Plus size={16} className="mr-1" />
-                    Thêm
+                    <Plus size={14} className="sm:mr-1" />
+                    <span className="hidden sm:inline">Thêm âm thanh</span>
                   </Button>
                 </div>
 
@@ -579,14 +570,14 @@ function FocusPage() {
                             onClick={() => handleRemoveSoundTrack(track.id)}
                             className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
                           >
-                            <X size={16} />
+                            <X size={20} />
                           </button>
                         )}
                       </div>
 
                       {/* Volume Control */}
                       <div className="flex items-center space-x-3">
-                        <Volume2
+                        <Music
                           size={16}
                           className="text-gray-500 flex-shrink-0"
                         />
@@ -604,9 +595,16 @@ function FocusPage() {
                               parseFloat(e.target.value)
                             )
                           }
-                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                          style={{
+                            background: `linear-gradient(to right, #a855f7 0%, #a855f7 ${
+                              (track.volume || 1.0) * 100
+                            }%, #e5e7eb ${
+                              (track.volume || 1.0) * 100
+                            }%, #e5e7eb 100%)`,
+                          }}
                         />
-                        <span className="text-xs text-gray-600 min-w-[35px]">
+                        <span className="text-sm font-medium text-gray-700 w-12 text-right">
                           {Math.round((track.volume || 1.0) * 100)}%
                         </span>
                       </div>
@@ -619,7 +617,7 @@ function FocusPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                    Thời gian làm việc
+                    Thời gian làm việc (phút)
                   </label>
                   <div className="relative">
                     <select
@@ -643,7 +641,7 @@ function FocusPage() {
 
                 <div>
                   <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                    Thời gian nghỉ
+                    Thời gian nghỉ (phút)
                   </label>
                   <div className="relative">
                     <select
@@ -672,18 +670,21 @@ function FocusPage() {
                   onClick={() => setShowSaveModal(true)}
                   variant="secondary"
                   fullWidth
-                  className="text-xs sm:text-sm"
+                  size="md"
                 >
-                  <Save size={16} className="mr-1 sm:mr-2" />
-                  Lưu Session
+                  <Save size={18} className="sm:mr-2" />
+                  <span className="hidden sm:inline">Lưu tiến trình</span>
+                  <span className="sm:hidden">Lưu</span>
                 </Button>
                 <Button
                   onClick={() => setShowLoadModal(true)}
                   variant="secondary"
                   fullWidth
-                  className="text-xs sm:text-sm"
+                  size="md"
                 >
-                  Tải Session
+                  <Clock size={18} className="sm:mr-2" />
+                  <span className="hidden sm:inline">Tải tiến trình</span>
+                  <span className="sm:hidden">Tải</span>
                 </Button>
               </div>
             </div>
@@ -699,11 +700,19 @@ function FocusPage() {
               {isWorkMode ? "Bắt đầu nghỉ ngơi!" : "Tiếp tục làm việc!"}
             </h2>
             <p className="text-xl text-gray-600 mb-8">
-              Đứng dậy thư giãn trong {breakCountdown} giây
+              Hãy đứng dậy và thư giãn một chút
             </p>
-            <div className="text-6xl font-bold text-purple-600">
-              {breakCountdown}
+            <div className="text-6xl font-bold text-purple-600 mb-6">
+              {breakCountdown}s
             </div>
+            <Button
+              onClick={() => setShowBreakPopup(false)}
+              variant="primary"
+              size="lg"
+              fullWidth
+            >
+              Đóng
+            </Button>
           </div>
         </div>
       )}
@@ -712,34 +721,25 @@ function FocusPage() {
       <Modal
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
-        title="Lưu Session"
+        title="Lưu tiến trình"
         size="sm"
       >
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Tên Session
+              Tên tiến trình
             </label>
             <input
               type="text"
               value={sessionName}
               onChange={(e) => setSessionName(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none"
-              placeholder="Ví dụ: Deep Work Session"
+              placeholder="Ví dụ: Lofi + Rain Morning"
             />
           </div>
-          <div className="flex space-x-3">
-            <Button onClick={handleSaveSession} fullWidth>
-              Lưu
-            </Button>
-            <Button
-              onClick={() => setShowSaveModal(false)}
-              variant="secondary"
-              fullWidth
-            >
-              Hủy
-            </Button>
-          </div>
+          <Button onClick={handleSaveSession} variant="primary" fullWidth>
+            Lưu
+          </Button>
         </div>
       </Modal>
 
@@ -747,19 +747,19 @@ function FocusPage() {
       <Modal
         isOpen={showLoadModal}
         onClose={() => setShowLoadModal(false)}
-        title="Tải Session"
+        title="Tải tiến trình đã lưu"
         size="md"
       >
-        <div className="space-y-3 max-h-96 overflow-y-auto">
-          {savedSessions.length === 0 ? (
-            <p className="text-center text-gray-500 py-8">
-              Chưa có session nào được lưu
-            </p>
-          ) : (
-            savedSessions.map((session) => (
+        {savedSessions.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-500">Chưa có tiến trình nào được lưu</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {savedSessions.map((session) => (
               <div
                 key={session.id}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <div className="flex-1">
                   <h3 className="font-semibold text-gray-800">
@@ -772,7 +772,7 @@ function FocusPage() {
                 <div className="flex space-x-2">
                   <Button
                     onClick={() => handleLoadSession(session)}
-                    variant="secondary"
+                    variant="primary"
                     size="sm"
                   >
                     Tải
@@ -785,9 +785,9 @@ function FocusPage() {
                   </button>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
       </Modal>
     </div>
   );
