@@ -18,7 +18,6 @@ import {
   Trash2,
   Maximize2,
   Minimize2,
-  Sliders,
 } from "lucide-react";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
@@ -30,14 +29,6 @@ import {
   addSavedSession,
   deleteSavedSession,
 } from "../utils/storage";
-import {
-  getAnimationsMetadata,
-  getSoundsMetadata,
-  getAnimationCached,
-  getSoundCached,
-  clearUnusedCache,
-  clearAllCache,
-} from "../utils/lazyStorage";
 import { audioManager } from "../utils/audio";
 import {
   toggleFullscreen,
@@ -77,7 +68,6 @@ function FocusPage() {
   // Hide UI State
   const [isUIHidden, setIsUIHidden] = useState(false);
   const [showTimerWhenHidden, setShowTimerWhenHidden] = useState(false);
-  const [showVolumePanel, setShowVolumePanel] = useState(false);
 
   // Background Mode State: 'fit' (contain) or 'fill' (cover)
   const [backgroundMode, setBackgroundMode] = useState(() => {
@@ -87,30 +77,8 @@ function FocusPage() {
 
   const timerRef = useRef(null);
   const breakTimerRef = useRef(null);
-  const videoRef = useRef(null);
-  const blurVideoRef = useRef(null);
 
-  // Cache data to prevent reloading
-  const dataCache = useRef({
-    animations: null,
-    sounds: null,
-    presets: null,
-    sessions: null,
-    timestamp: 0,
-  });
-
-  // Detect mobile device
-  const isMobile = useRef(
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent
-    ) || window.innerWidth < 768
-  ).current;
-
-  // Page visibility state
-  const [isPageVisible, setIsPageVisible] = useState(!document.hidden);
-  const wasRunningBeforeHidden = useRef(false);
-
-  // Load data on mount with caching
+  // Load data on mount
   useEffect(() => {
     loadData();
 
@@ -118,82 +86,8 @@ function FocusPage() {
       audioManager.stopAll();
       if (timerRef.current) clearInterval(timerRef.current);
       if (breakTimerRef.current) clearInterval(breakTimerRef.current);
-
-      // Clear cache on unmount to free memory
-      dataCache.current = {
-        animations: null,
-        sounds: null,
-        presets: null,
-        sessions: null,
-        timestamp: 0,
-      };
-
-      // Clear lazy loading cache
-      clearAllCache();
-      console.log("[ChillPomodoro] All caches cleared on unmount");
     };
   }, []);
-
-  // Page Visibility API - Pause when tab inactive
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      const isVisible = !document.hidden;
-      setIsPageVisible(isVisible);
-
-      if (!isVisible && isRunning) {
-        // Tab hidden - pause timer and audio (keep videos running)
-        wasRunningBeforeHidden.current = true;
-        setIsRunning(false);
-        audioManager.stopAll();
-        console.log("[ChillPomodoro] Tab hidden - paused");
-
-        // Keep videos playing in background (if exists)
-        if (backgroundVideo) {
-          if (videoRef.current) {
-            videoRef.current.play().catch(() => {});
-          }
-          if (blurVideoRef.current && !isMobile) {
-            blurVideoRef.current.play().catch(() => {});
-          }
-        }
-      } else if (isVisible && wasRunningBeforeHidden.current) {
-        // Tab visible again - resume videos if needed
-        wasRunningBeforeHidden.current = false;
-
-        // Ensure videos are playing
-        if (backgroundVideo) {
-          if (videoRef.current) {
-            videoRef.current.play().catch((err) => {
-              console.warn("[ChillPomodoro] Main video resume failed:", err);
-            });
-          }
-          if (blurVideoRef.current && !isMobile) {
-            blurVideoRef.current.play().catch(() => {});
-          }
-        }
-
-        // Don't auto-resume timer, let user decide
-        console.log("[ChillPomodoro] Tab visible - ready to resume");
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    // Prevent iOS Safari from killing the tab
-    const preventUnload = (e) => {
-      if (isRunning) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-
-    window.addEventListener("beforeunload", preventUnload);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-      window.removeEventListener("beforeunload", preventUnload);
-    };
-  }, [isRunning, backgroundVideo]);
 
   // ESC key to toggle UI visibility
   useEffect(() => {
@@ -263,67 +157,24 @@ function FocusPage() {
 
   const loadData = async () => {
     try {
-      const now = Date.now();
-      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
-
-      // Check if cache is still valid
-      if (
-        dataCache.current.timestamp > 0 &&
-        now - dataCache.current.timestamp < CACHE_DURATION &&
-        dataCache.current.animations
-      ) {
-        console.log("[ChillPomodoro] Using cached metadata");
-        setAnimations(dataCache.current.animations);
-        setSounds(dataCache.current.sounds);
-        setPresets(dataCache.current.presets);
-        setSavedSessions(dataCache.current.sessions);
-        return;
-      }
-
-      console.log("[ChillPomodoro] Loading lightweight metadata (OPTIMIZED)");
-
-      // OPTIMIZATION: Load only metadata (names, IDs) - NOT full data URLs
-      // This is 100x faster and lighter than loading full base64 data!
       const [animationsData, soundsData, presetsData, sessionsData] =
         await Promise.all([
-          getAnimationsMetadata(), // Only metadata - NO URLs!
-          getSoundsMetadata(), // Only metadata - NO URLs!
+          getAnimations(),
+          getSounds(),
           Promise.resolve(getPresets()),
           Promise.resolve(getSavedSessions()),
         ]);
 
-      const animations = animationsData || [];
-      const sounds = soundsData || [];
-      const presets = presetsData || [];
-      const sessions = sessionsData || [];
-
-      // Update state with lightweight metadata
-      setAnimations(animations);
-      setSounds(sounds);
-      setPresets(presets);
-      setSavedSessions(sessions);
-
-      // Update cache
-      dataCache.current = {
-        animations,
-        sounds,
-        presets,
-        sessions,
-        timestamp: now,
-      };
-
-      console.log("[ChillPomodoro] Lightweight metadata loaded ⚡");
-      console.log(`  → ${animations.length} animations (metadata only)`);
-      console.log(`  → ${sounds.length} sounds (metadata only)`);
+      setAnimations(animationsData || []);
+      setSounds(soundsData || []);
+      setPresets(presetsData || []);
+      setSavedSessions(sessionsData || []);
     } catch (error) {
-      console.error("[ChillPomodoro] Error loading data:", error);
+      console.error("Error loading data:", error);
       setAnimations([]);
       setSounds([]);
       setPresets([]);
       setSavedSessions([]);
-
-      // Show user-friendly error
-      alert("Không thể tải dữ liệu. Vui lòng refresh trang.");
     }
   };
 
@@ -334,101 +185,49 @@ function FocusPage() {
     setIsWorkMode(!isWorkMode);
   };
 
-  const handleStartPause = async () => {
-    try {
-      if (!isRunning) {
-        // Ensure videos play when starting (user interaction)
-        if (backgroundVideo) {
-          // Play main video
-          if (videoRef.current) {
-            videoRef.current.play().catch((err) => {
-              console.warn(
-                "[ChillPomodoro] Main video play on start failed:",
-                err
-              );
-            });
-          }
+  const handleStartPause = () => {
+    if (!isRunning) {
+      // Start playing all selected sounds
+      soundTracks.forEach((track) => {
+        if (track.selectedSound) {
+          const trackVolume = track.volume || 1.0;
 
-          // Play blur video (desktop only)
-          if (blurVideoRef.current && !isMobile) {
-            blurVideoRef.current.play().catch(() => {});
-          }
-        }
-
-        // OPTIMIZATION: Load sound data on-demand before playing
-        console.log("[ChillPomodoro] Loading selected sounds...");
-
-        for (const track of soundTracks) {
-          if (track.selectedSound) {
-            const trackVolume = track.volume || 1.0;
-
-            if (track.type === "single") {
-              // Load full sound data on-demand
-              const sound = await getSoundCached(track.selectedSound);
-              if (sound && sound.url) {
-                const finalVolume = (sound.volume || 1.0) * trackVolume;
-                audioManager.playSound(track.id, sound.url, true, finalVolume);
-              }
-            } else if (track.type === "preset") {
-              const preset = presets.find((p) => p.id === track.selectedSound);
-              if (preset && preset.soundIds) {
-                // Load all sounds in preset
-                for (const soundId of preset.soundIds) {
-                  const sound = await getSoundCached(soundId);
-                  if (sound && sound.url) {
-                    const finalVolume = (sound.volume || 1.0) * trackVolume;
-                    audioManager.playSound(
-                      `${track.id}_${soundId}`,
-                      sound.url,
-                      true,
-                      finalVolume
-                    );
-                  }
+          if (track.type === "single") {
+            const sound = sounds.find((s) => s.id === track.selectedSound);
+            if (sound) {
+              const finalVolume = (sound.volume || 1.0) * trackVolume;
+              audioManager.playSound(track.id, sound.url, true, finalVolume);
+            }
+          } else if (track.type === "preset") {
+            const preset = presets.find((p) => p.id === track.selectedSound);
+            if (preset && preset.soundIds) {
+              preset.soundIds.forEach((soundId) => {
+                const sound = sounds.find((s) => s.id === soundId);
+                if (sound) {
+                  const finalVolume = (sound.volume || 1.0) * trackVolume;
+                  audioManager.playSound(
+                    `${track.id}_${soundId}`,
+                    sound.url,
+                    true,
+                    finalVolume
+                  );
                 }
-              }
+              });
             }
           }
         }
-
-        console.log("[ChillPomodoro] All sounds loaded and playing ✓");
-      } else {
-        audioManager.stopAll();
-        // Don't pause videos when stopping timer - keep them playing
-        // Videos should keep looping in background
-      }
-
-      setIsRunning(!isRunning);
-    } catch (error) {
-      console.error("[ChillPomodoro] Error in handleStartPause:", error);
-      // Try to recover
+      });
+    } else {
       audioManager.stopAll();
-      setIsRunning(false);
-      alert("Có lỗi xảy ra. Vui lòng thử lại.");
     }
+
+    setIsRunning(!isRunning);
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setTimeLeft(isWorkMode ? workTime * 60 : breakTime * 60);
     audioManager.stopAll();
-
-    // Keep videos playing after reset
-    if (backgroundVideo) {
-      // Play main video
-      if (videoRef.current) {
-        videoRef.current.play().catch((err) => {
-          console.warn(
-            "[ChillPomodoro] Main video play after reset failed:",
-            err
-          );
-        });
-      }
-
-      // Play blur video (desktop only)
-      if (blurVideoRef.current && !isMobile) {
-        blurVideoRef.current.play().catch(() => {});
-      }
-    }
   };
 
   const handleAddSoundTrack = () => {
@@ -457,41 +256,6 @@ function FocusPage() {
     );
   };
 
-  // Update volume in realtime while running
-  const handleRealtimeVolumeChange = async (trackId, newVolume) => {
-    // Update state
-    setSoundTracks(
-      soundTracks.map((t) =>
-        t.id === trackId ? { ...t, volume: newVolume } : t
-      )
-    );
-
-    // Update audio manager immediately
-    const track = soundTracks.find((t) => t.id === trackId);
-    if (track && track.selectedSound) {
-      if (track.type === "single") {
-        // Get sound data (from cache if already loaded)
-        const sound = await getSoundCached(track.selectedSound);
-        if (sound) {
-          const finalVolume = (sound.volume || 1.0) * newVolume;
-          audioManager.setVolume(trackId, finalVolume);
-        }
-      } else if (track.type === "preset") {
-        const preset = presets.find((p) => p.id === track.selectedSound);
-        if (preset && preset.soundIds) {
-          // Update all sounds in preset
-          for (const soundId of preset.soundIds) {
-            const sound = await getSoundCached(soundId);
-            if (sound) {
-              const finalVolume = (sound.volume || 1.0) * newVolume;
-              audioManager.setVolume(`${trackId}_${soundId}`, finalVolume);
-            }
-          }
-        }
-      }
-    }
-  };
-
   const handleSaveSession = () => {
     if (!sessionName) {
       alert("Vui lòng nhập tên session");
@@ -514,73 +278,17 @@ function FocusPage() {
   };
 
   const handleLoadSession = (session) => {
-    try {
-      setSelectedBackground(session.background);
-      setSoundTracks(
-        session.soundTracks || [
-          { id: Date.now(), selectedSound: null, type: "single", volume: 1.0 },
-        ]
-      );
-      setWorkTime(session.workTime);
-      setBreakTime(session.breakTime);
-      setShowLoadModal(false);
-      handleReset();
-    } catch (error) {
-      console.error("[ChillPomodoro] Error loading session:", error);
-      alert("Không thể tải session. Vui lòng thử lại.");
-    }
+    setSelectedBackground(session.background);
+    setSoundTracks(
+      session.soundTracks || [
+        { id: Date.now(), selectedSound: null, type: "single", volume: 1.0 },
+      ]
+    );
+    setWorkTime(session.workTime);
+    setBreakTime(session.breakTime);
+    setShowLoadModal(false);
+    handleReset();
   };
-
-  // Ensure video plays when background is selected or timer starts
-  useEffect(() => {
-    if (backgroundVideo) {
-      // Try to play main video
-      if (videoRef.current) {
-        const playPromise = videoRef.current.play();
-
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log("[ChillPomodoro] Main video playing");
-            })
-            .catch((error) => {
-              console.warn("[ChillPomodoro] Video autoplay blocked:", error);
-              // This is normal - video will play on user interaction
-            });
-        }
-      }
-
-      // Try to play blur video (desktop only)
-      if (blurVideoRef.current && !isMobile) {
-        blurVideoRef.current.play().catch(() => {
-          // Ignore blur video play errors
-        });
-      }
-    }
-  }, [backgroundVideo, isRunning, isMobile]);
-
-  // Memory cleanup - Release unused background resources
-  useEffect(() => {
-    // Cleanup when background changes
-    return () => {
-      // Stop main video if exists
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.src = "";
-      }
-
-      // Stop blur video if exists
-      if (blurVideoRef.current) {
-        blurVideoRef.current.pause();
-        blurVideoRef.current.src = "";
-      }
-
-      // Force garbage collection hint for old background
-      if (window.gc) {
-        window.gc();
-      }
-    };
-  }, [selectedBackground]);
 
   const handleDeleteSession = (id) => {
     if (window.confirm("Bạn có chắc muốn xóa session này?")) {
@@ -603,25 +311,10 @@ function FocusPage() {
       .padStart(2, "0")}`;
   };
 
-  // Background data - with lazy loading
-  const [selectedBackgroundData, setSelectedBackgroundData] = useState(null);
-
-  // Load background data when selected
-  useEffect(() => {
-    if (selectedBackground) {
-      // Load full data on-demand
-      (async () => {
-        console.log(`[ChillPomodoro] Loading background ${selectedBackground}`);
-        const fullData = await getAnimationCached(selectedBackground);
-        if (fullData) {
-          setSelectedBackgroundData(fullData);
-          console.log(`[ChillPomodoro] Background loaded ✓`);
-        }
-      })();
-    } else {
-      setSelectedBackgroundData(null);
-    }
-  }, [selectedBackground]);
+  // Background data
+  const selectedBackgroundData = selectedBackground
+    ? animations.find((a) => a.id === selectedBackground)
+    : null;
 
   const backgroundImage =
     selectedBackgroundData && selectedBackgroundData.type !== "video"
@@ -644,46 +337,37 @@ function FocusPage() {
     >
       {/* Background Container - Responsive */}
       <div className="absolute inset-0 w-full h-full">
-        {/* Blur Background Layer - Desktop only (too heavy for mobile) */}
-        {!isMobile &&
-          (backgroundImage || backgroundVideo) &&
-          backgroundMode === "fit" && (
-            <div className="absolute inset-0 w-full h-full overflow-hidden">
-              {backgroundImage && (
-                <div
-                  className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
-                  style={{
-                    backgroundImage: `url(${backgroundImage})`,
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                    filter: "blur(40px) brightness(0.7)",
-                    transform: "scale(1.1)",
-                  }}
-                />
-              )}
-              {backgroundVideo && (
-                <video
-                  ref={blurVideoRef}
-                  src={backgroundVideo}
-                  className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
-                  style={{
-                    filter: "blur(40px) brightness(0.7)",
-                    transform: "scale(1.1)",
-                  }}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  onLoadedData={() => {
-                    // Ensure blur video plays
-                    if (blurVideoRef.current) {
-                      blurVideoRef.current.play().catch(() => {});
-                    }
-                  }}
-                />
-              )}
-            </div>
-          )}
+        {/* Blur Background Layer - fills entire space */}
+        {(backgroundImage || backgroundVideo) && backgroundMode === "fit" && (
+          <div className="absolute inset-0 w-full h-full overflow-hidden">
+            {backgroundImage && (
+              <div
+                className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
+                style={{
+                  backgroundImage: `url(${backgroundImage})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "blur(40px) brightness(0.7)",
+                  transform: "scale(1.1)",
+                }}
+              />
+            )}
+            {backgroundVideo && (
+              <video
+                src={backgroundVideo}
+                className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
+                style={{
+                  filter: "blur(40px) brightness(0.7)",
+                  transform: "scale(1.1)",
+                }}
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+            )}
+          </div>
+        )}
 
         {/* Main Background - sharp, centered */}
         {backgroundImage && !backgroundVideo && (
@@ -701,7 +385,6 @@ function FocusPage() {
         {backgroundVideo && (
           <div className="absolute inset-0 w-full h-full flex items-center justify-center">
             <video
-              ref={videoRef}
               src={backgroundVideo}
               className={`transition-all duration-500 ${
                 backgroundMode === "fit"
@@ -716,17 +399,6 @@ function FocusPage() {
               muted
               playsInline
               webkit-playsinline="true"
-              preload={isMobile ? "metadata" : "auto"}
-              disablePictureInPicture
-              controlsList="nodownload nofullscreen noremoteplayback"
-              onLoadedData={() => {
-                // Try to play when video is loaded
-                if (videoRef.current) {
-                  videoRef.current.play().catch((err) => {
-                    console.warn("[ChillPomodoro] Video play failed:", err);
-                  });
-                }
-              }}
             />
           </div>
         )}
@@ -785,105 +457,6 @@ function FocusPage() {
               )}
             </button>
           )}
-          {/* Volume Panel Button - Only show when timer is running */}
-          {isRunning && (
-            <button
-              onClick={() => setShowVolumePanel(!showVolumePanel)}
-              className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
-              title={
-                showVolumePanel
-                  ? "Đóng điều chỉnh âm lượng"
-                  : "Điều chỉnh âm lượng"
-              }
-            >
-              <Sliders
-                size={18}
-                className={showVolumePanel ? "text-blue-300" : ""}
-              />
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Volume Control Panel - Floating */}
-      {isUIHidden && showVolumePanel && isRunning && (
-        <div
-          className="absolute bottom-4 left-4 right-4 sm:bottom-auto sm:top-24 sm:right-4 sm:left-auto sm:w-96 z-40"
-          style={{
-            paddingBottom: "env(safe-area-inset-bottom)",
-            paddingLeft: "env(safe-area-inset-left)",
-            paddingRight: "env(safe-area-inset-right)",
-          }}
-        >
-          <div className="bg-black bg-opacity-80 backdrop-filter backdrop-blur-xl rounded-2xl p-4 sm:p-6 shadow-2xl border border-white border-opacity-20">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-white font-bold text-lg flex items-center gap-2">
-                <Volume2 size={20} />
-                <span>Điều chỉnh âm lượng</span>
-              </h3>
-              <button
-                onClick={() => setShowVolumePanel(false)}
-                className="text-white hover:text-red-400 transition-colors p-1 rounded-full hover:bg-white hover:bg-opacity-10"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <div className="space-y-4 max-h-[50vh] overflow-y-auto">
-              {soundTracks
-                .filter((track) => track.selectedSound)
-                .map((track, index) => {
-                  const soundName =
-                    track.type === "single"
-                      ? sounds.find((s) => s.id === track.selectedSound)?.name
-                      : presets.find((p) => p.id === track.selectedSound)?.name;
-
-                  return (
-                    <div
-                      key={track.id}
-                      className="bg-white bg-opacity-10 rounded-lg p-3 border border-white border-opacity-10"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-white text-sm font-medium truncate flex-1">
-                          {soundName || `Sound ${index + 1}`}
-                        </span>
-                        <span className="text-white text-xs opacity-75 ml-2">
-                          {Math.round((track.volume || 1.0) * 100)}%
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Volume2
-                          size={16}
-                          className="text-white opacity-75 flex-shrink-0"
-                        />
-                        <input
-                          type="range"
-                          min="0"
-                          max="1"
-                          step="0.05"
-                          value={track.volume || 1.0}
-                          onChange={(e) =>
-                            handleRealtimeVolumeChange(
-                              track.id,
-                              parseFloat(e.target.value)
-                            )
-                          }
-                          className="flex-1 h-2 bg-white bg-opacity-20 rounded-lg appearance-none cursor-pointer slider"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-
-              {soundTracks.filter((track) => track.selectedSound).length ===
-                0 && (
-                <div className="text-white text-center py-6 opacity-75">
-                  <Volume2 size={32} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Không có âm thanh nào đang phát</p>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       )}
 

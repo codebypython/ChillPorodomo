@@ -38,33 +38,12 @@
   - Chế độ **Fill**: Full màn hình (có thể crop)
   - Nút toggle linh hoạt, lưu lựa chọn tự động
   - Premium experience như Spotify
-- **👻 Invisible Buttons** ⭐ **v2.6.0**
+- **👻 Invisible Buttons** ⭐ **NEW v2.6.0**
   - Nút điều khiển **ẩn hoàn toàn** khi không dùng
   - **Desktop**: Hiện khi rê chuột (hover)
   - **Mobile**: Mờ nhẹ, hiện rõ khi chạm
   - Frosted glass effect (backdrop blur)
   - Trải nghiệm immersive tối đa
-- **📱 Mobile Stability** ⭐ **v2.7.0**
-  - **Không tự động reload** trên mobile
-  - Data caching (5min TTL) - Load nhanh 95%
-  - Auto-pause khi switch tab
-  - Prevent pull-to-refresh
-  - Tối ưu memory - Giảm 50% RAM usage
-  - **Ổn định trong thời gian dài** (30+ phút)
-- **⚡ Performance Optimization** ⭐ **v2.8.0**
-  - **Lazy Loading**: Chỉ load metadata lúc đầu, không load toàn bộ file
-  - **On-demand Loading**: Load file khi cần (background/sound được chọn)
-  - **Smart Caching**: Cache dữ liệu đã load, xóa khi không dùng
-  - **Service Worker**: Cache aggressive cho static assets
-  - **Load nhanh hơn 10-100x** trên mobile
-  - Tiết kiệm băng thông internet
-  - Trải nghiệm mượt mà ngay cả với 50+ files
-- **🎚️ Realtime Volume Panel**
-  - Panel điều chỉnh âm lượng khi UI ẩn
-  - Điều chỉnh từng luồng âm thanh riêng biệt
-  - Phản hồi ngay lập tức
-  - UI đẹp với frosted glass effect
-  - Floating panel, dễ truy cập
 - Phát nhiều âm thanh/preset cùng lúc
 - **🎚️ Điều chỉnh volume từng sound track** (slider 0-100%)
 - **👁️ Ẩn giao diện** - Chỉ hiện background rõ nét
@@ -200,39 +179,18 @@ npm run deploy
 - ✅ Ảnh, GIF, Video (lên đến 50MB)
 - ✅ Âm thanh (lên đến 50MB)
 - ✅ Hỗ trợ upload file từ máy tính
-- ✅ **Lazy Loading** (v2.8.0): Chỉ load metadata lúc đầu, full data khi cần
 
 ### LocalStorage (cho metadata):
 
 - Preset đã tạo
 - Tiến trình đã lưu
 - Cài đặt
-- Background mode preference
 
 **Lưu ý**:
 
 - Dữ liệu được lưu trực tiếp trên trình duyệt, không cần server
 - Hỗ trợ upload file lớn lên đến 50MB
-
-## ⚡ Performance & Optimization
-
-### v2.8.0 - Tối ưu mạnh cho Mobile
-
-**Lazy Loading Strategy:**
-
-1. **Initial Load**: Chỉ load metadata (name, id, type) - **50KB** thay vì 50MB
-2. **On-Demand**: Load full data khi user chọn background/sound
-3. **Smart Cache**: Cache data đã load, auto-clear khi không dùng
-4. **Service Worker**: Cache aggressive cho static assets
-
-**Kết quả:**
-
-- ⚡ Load nhanh hơn **10-100x** trên mobile
-- 💾 Tiết kiệm **95% băng thông** internet
-- 🧠 Giảm **90% memory usage** lúc khởi động
-- 🚀 Mượt mà với 50+ files trong kho
-
-Chi tiết: `PERFORMANCE_OPTIMIZATION_v2.8.md`
+- Xem thêm chi tiết trong `INDEXEDDB_GUIDE.md`
 
 ## 🎯 Cách sử dụng
 
