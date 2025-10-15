@@ -314,33 +314,60 @@ function FocusPage() {
 
   return (
     <div
-      className="min-h-screen relative overflow-hidden"
+      className="fixed inset-0 w-full overflow-hidden"
       style={{
-        backgroundImage: backgroundImage ? `url(${backgroundImage})` : "none",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
+        height: "100dvh", // Dynamic viewport height for mobile (fallback to 100vh in CSS)
         backgroundColor:
-          backgroundImage || backgroundVideo ? "transparent" : "#f3f4f6",
+          backgroundImage || backgroundVideo ? "#000" : "#f3f4f6",
       }}
     >
-      {/* Video background */}
-      {backgroundVideo && (
-        <video
-          src={backgroundVideo}
-          className="absolute inset-0 w-full h-full object-cover"
-          autoPlay
-          loop
-          muted
-          playsInline
-        />
-      )}
+      {/* Background Container - Responsive */}
+      <div className="absolute inset-0 w-full h-full">
+        {/* Image background */}
+        {backgroundImage && !backgroundVideo && (
+          <div
+            className="absolute inset-0 w-full h-full bg-center bg-no-repeat"
+            style={{
+              backgroundImage: `url(${backgroundImage})`,
+              backgroundSize: "contain",
+              backgroundPosition: "center",
+            }}
+          />
+        )}
 
-      {/* Overlay for better readability */}
+        {/* Video background - iOS Safari optimized */}
+        {backgroundVideo && (
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-black">
+            <video
+              src={backgroundVideo}
+              className="max-w-full max-h-full w-auto h-auto"
+              style={{
+                objectFit: "contain",
+              }}
+              autoPlay
+              loop
+              muted
+              playsInline
+              webkit-playsinline="true"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Overlay for better readability - with safe area */}
       {(backgroundImage || backgroundVideo) && !isUIHidden && (
-        <div className="absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm"></div>
+        <div
+          className="absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm"
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingBottom: "env(safe-area-inset-bottom)",
+            paddingLeft: "env(safe-area-inset-left)",
+            paddingRight: "env(safe-area-inset-right)",
+          }}
+        ></div>
       )}
 
-      {/* Floating buttons when UI hidden */}
+      {/* Floating buttons when UI hidden - with safe area */}
       {isUIHidden && (
         <div className="absolute top-4 right-4 z-50 flex flex-col gap-2">
           <button
@@ -374,14 +401,21 @@ function FocusPage() {
         </div>
       )}
 
-      {/* Main Content */}
+      {/* Main Content - with safe area and proper scrolling */}
       <div
-        className={`relative z-10 min-h-screen flex flex-col transition-opacity duration-500 ${
+        className={`relative z-10 flex flex-col transition-opacity duration-500 ${
           isUIHidden ? "opacity-0 pointer-events-none" : "opacity-100"
         }`}
+        style={{
+          height: "100dvh",
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+          paddingLeft: "env(safe-area-inset-left)",
+          paddingRight: "env(safe-area-inset-right)",
+        }}
       >
         {/* Header */}
-        <div className="p-4 flex items-center justify-between">
+        <div className="p-4 flex items-center justify-between flex-shrink-0">
           <Button
             variant="ghost"
             size="sm"
@@ -414,9 +448,9 @@ function FocusPage() {
           </div>
         </div>
 
-        {/* Main Content */}
-        <div className="flex-1 flex items-center justify-center p-2 sm:p-4">
-          <div className="w-full max-w-4xl">
+        {/* Main Content - scrollable area */}
+        <div className="flex-1 flex items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden">
+          <div className="w-full max-w-4xl my-auto">
             {/* Timer Display */}
             <div className="text-center mb-6 sm:mb-12">
               <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 sm:mb-4 drop-shadow-lg px-2">
@@ -464,8 +498,8 @@ function FocusPage() {
               </div>
             </div>
 
-            {/* Controls */}
-            <div className="bg-white bg-opacity-95 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-6 max-h-[60vh] sm:max-h-none overflow-y-auto">
+            {/* Controls - adaptive height for mobile */}
+            <div className="bg-white bg-opacity-95 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-6 max-h-[50vh] sm:max-h-[70vh] md:max-h-none overflow-y-auto">
               {/* Background Selection */}
               <div>
                 <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
