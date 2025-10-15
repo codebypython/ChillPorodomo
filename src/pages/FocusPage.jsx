@@ -16,6 +16,8 @@ import {
   Eye,
   Volume2,
   Trash2,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
@@ -66,6 +68,12 @@ function FocusPage() {
   // Hide UI State
   const [isUIHidden, setIsUIHidden] = useState(false);
   const [showTimerWhenHidden, setShowTimerWhenHidden] = useState(false);
+
+  // Background Mode State: 'fit' (contain) or 'fill' (cover)
+  const [backgroundMode, setBackgroundMode] = useState(() => {
+    const saved = localStorage.getItem("backgroundMode");
+    return saved || "fit";
+  });
 
   const timerRef = useRef(null);
   const breakTimerRef = useRef(null);
@@ -289,6 +297,12 @@ function FocusPage() {
     }
   };
 
+  const toggleBackgroundMode = () => {
+    const newMode = backgroundMode === "fit" ? "fill" : "fit";
+    setBackgroundMode(newMode);
+    localStorage.setItem("backgroundMode", newMode);
+  };
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -323,13 +337,45 @@ function FocusPage() {
     >
       {/* Background Container - Responsive */}
       <div className="absolute inset-0 w-full h-full">
-        {/* Image background */}
+        {/* Blur Background Layer - fills entire space */}
+        {(backgroundImage || backgroundVideo) && backgroundMode === "fit" && (
+          <div className="absolute inset-0 w-full h-full overflow-hidden">
+            {backgroundImage && (
+              <div
+                className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
+                style={{
+                  backgroundImage: `url(${backgroundImage})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                  filter: "blur(40px) brightness(0.7)",
+                  transform: "scale(1.1)",
+                }}
+              />
+            )}
+            {backgroundVideo && (
+              <video
+                src={backgroundVideo}
+                className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
+                style={{
+                  filter: "blur(40px) brightness(0.7)",
+                  transform: "scale(1.1)",
+                }}
+                autoPlay
+                loop
+                muted
+                playsInline
+              />
+            )}
+          </div>
+        )}
+
+        {/* Main Background - sharp, centered */}
         {backgroundImage && !backgroundVideo && (
           <div
-            className="absolute inset-0 w-full h-full bg-center bg-no-repeat"
+            className="absolute inset-0 w-full h-full bg-center bg-no-repeat transition-all duration-500"
             style={{
               backgroundImage: `url(${backgroundImage})`,
-              backgroundSize: "contain",
+              backgroundSize: backgroundMode === "fit" ? "contain" : "cover",
               backgroundPosition: "center",
             }}
           />
@@ -337,12 +383,16 @@ function FocusPage() {
 
         {/* Video background - iOS Safari optimized */}
         {backgroundVideo && (
-          <div className="absolute inset-0 w-full h-full flex items-center justify-center bg-black">
+          <div className="absolute inset-0 w-full h-full flex items-center justify-center">
             <video
               src={backgroundVideo}
-              className="max-w-full max-h-full w-auto h-auto"
+              className={`transition-all duration-500 ${
+                backgroundMode === "fit"
+                  ? "max-w-full max-h-full w-auto h-auto"
+                  : "w-full h-full"
+              }`}
               style={{
-                objectFit: "contain",
+                objectFit: backgroundMode === "fit" ? "contain" : "cover",
               }}
               autoPlay
               loop
@@ -384,6 +434,23 @@ function FocusPage() {
           >
             <Clock size={20} />
           </button>
+          {(backgroundImage || backgroundVideo) && (
+            <button
+              onClick={toggleBackgroundMode}
+              className="bg-black bg-opacity-50 hover:bg-opacity-70 text-white p-3 rounded-full shadow-2xl transition-all"
+              title={
+                backgroundMode === "fit"
+                  ? "Chế độ: Fit → Click để Fill"
+                  : "Chế độ: Fill → Click để Fit"
+              }
+            >
+              {backgroundMode === "fit" ? (
+                <Maximize2 size={20} className="text-purple-400" />
+              ) : (
+                <Minimize2 size={20} className="text-green-400" />
+              )}
+            </button>
+          )}
         </div>
       )}
 
@@ -429,6 +496,26 @@ function FocusPage() {
           </Button>
 
           <div className="flex space-x-2">
+            {/* Background Mode Toggle */}
+            {(backgroundImage || backgroundVideo) && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={toggleBackgroundMode}
+                className="bg-white bg-opacity-90 hover:bg-opacity-100"
+                title={
+                  backgroundMode === "fit"
+                    ? "Chế độ: Xem trọn vẹn (Fit) - Click để Full màn hình"
+                    : "Chế độ: Full màn hình (Fill) - Click để Xem trọn vẹn"
+                }
+              >
+                {backgroundMode === "fit" ? (
+                  <Maximize2 size={20} className="text-purple-600" />
+                ) : (
+                  <Minimize2 size={20} className="text-green-600" />
+                )}
+              </Button>
+            )}
             <Button
               variant="secondary"
               size="sm"

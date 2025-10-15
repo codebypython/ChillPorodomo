@@ -33,6 +33,11 @@
 
 - Timer Pomodoro tùy chỉnh
 - Chọn background từ kho animation (ảnh/GIF/video)
+- **🎨 Smart Blur Background** ⭐ **NEW v2.5.0**
+  - Chế độ **Fit**: Xem trọn vẹn background + blur fill (mặc định)
+  - Chế độ **Fill**: Full màn hình (có thể crop)
+  - Nút toggle linh hoạt, lưu lựa chọn tự động
+  - Premium experience như Spotify
 - Phát nhiều âm thanh/preset cùng lúc
 - **🎚️ Điều chỉnh volume từng sound track** (slider 0-100%)
 - **👁️ Ẩn giao diện** - Chỉ hiện background rõ nét
