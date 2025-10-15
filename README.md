@@ -191,14 +191,27 @@ npm run deploy
 
 ## 📚 Documentation
 
+### 🚀 Bắt đầu nhanh
+- `QUICK_START.md` - 🆕 Chạy dự án trong 3 bước
 - `README.md` - Tổng quan dự án
+
+### 📖 Hướng dẫn sử dụng
 - `FEATURES.md` - Chi tiết tất cả tính năng
-- `HIDE_UI_FEATURE.md` - 🆕 Hướng dẫn tính năng "Ẩn giao diện"
+- `HIDE_UI_FEATURE.md` - Hướng dẫn tính năng "Ẩn giao diện"
 - `MOBILE_GUIDE.md` - 📱 Hướng dẫn sử dụng trên Mobile
-- `DEPLOYMENT.md` - Hướng dẫn deploy chi tiết
+
+### 🚀 Deploy & Update
+- `UPDATE_GUIDE.md` - 🆕 ⭐ Hướng dẫn cập nhật dự án
+- `VERCEL_SETUP.md` - 🆕 Setup Vercel từng bước
+- `DEPLOYMENT.md` - Hướng dẫn deploy chi tiết các platform
+
+### 🔧 Kỹ thuật
+- `OPTIMIZATION.md` - 🆕 Tối ưu hóa performance
 - `INDEXEDDB_GUIDE.md` - Hướng dẫn IndexedDB
-- `CHANGELOG.md` - Lịch sử thay đổi
 - `TROUBLESHOOTING.md` - Khắc phục sự cố
+
+### 📝 Khác
+- `CHANGELOG.md` - Lịch sử thay đổi
 
 ## 📝 License
 
