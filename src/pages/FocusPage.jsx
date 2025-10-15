@@ -78,7 +78,27 @@ function FocusPage() {
   const timerRef = useRef(null);
   const breakTimerRef = useRef(null);
 
-  // Load data on mount
+  // Cache data to prevent reloading
+  const dataCache = useRef({
+    animations: null,
+    sounds: null,
+    presets: null,
+    sessions: null,
+    timestamp: 0,
+  });
+
+  // Detect mobile device
+  const isMobile = useRef(
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    ) || window.innerWidth < 768
+  ).current;
+
+  // Page visibility state
+  const [isPageVisible, setIsPageVisible] = useState(!document.hidden);
+  const wasRunningBeforeHidden = useRef(false);
+
+  // Load data on mount with caching
   useEffect(() => {
     loadData();
 
@@ -86,8 +106,55 @@ function FocusPage() {
       audioManager.stopAll();
       if (timerRef.current) clearInterval(timerRef.current);
       if (breakTimerRef.current) clearInterval(breakTimerRef.current);
+
+      // Clear cache on unmount to free memory
+      dataCache.current = {
+        animations: null,
+        sounds: null,
+        presets: null,
+        sessions: null,
+        timestamp: 0,
+      };
     };
   }, []);
+
+  // Page Visibility API - Pause when tab inactive
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsPageVisible(isVisible);
+
+      if (!isVisible && isRunning) {
+        // Tab hidden - pause timer and audio
+        wasRunningBeforeHidden.current = true;
+        setIsRunning(false);
+        audioManager.stopAll();
+        console.log("[ChillPomodoro] Tab hidden - paused");
+      } else if (isVisible && wasRunningBeforeHidden.current) {
+        // Tab visible again - resume
+        wasRunningBeforeHidden.current = false;
+        // Don't auto-resume, let user decide
+        console.log("[ChillPomodoro] Tab visible - ready to resume");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Prevent iOS Safari from killing the tab
+    const preventUnload = (e) => {
+      if (isRunning) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", preventUnload);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("beforeunload", preventUnload);
+    };
+  }, [isRunning]);
 
   // ESC key to toggle UI visibility
   useEffect(() => {
@@ -157,6 +224,24 @@ function FocusPage() {
 
   const loadData = async () => {
     try {
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
+      // Check if cache is still valid
+      if (
+        dataCache.current.timestamp > 0 &&
+        now - dataCache.current.timestamp < CACHE_DURATION &&
+        dataCache.current.animations
+      ) {
+        console.log("[ChillPomodoro] Using cached data");
+        setAnimations(dataCache.current.animations);
+        setSounds(dataCache.current.sounds);
+        setPresets(dataCache.current.presets);
+        setSavedSessions(dataCache.current.sessions);
+        return;
+      }
+
+      console.log("[ChillPomodoro] Loading fresh data from storage");
       const [animationsData, soundsData, presetsData, sessionsData] =
         await Promise.all([
           getAnimations(),
@@ -165,16 +250,36 @@ function FocusPage() {
           Promise.resolve(getSavedSessions()),
         ]);
 
-      setAnimations(animationsData || []);
-      setSounds(soundsData || []);
-      setPresets(presetsData || []);
-      setSavedSessions(sessionsData || []);
+      const animations = animationsData || [];
+      const sounds = soundsData || [];
+      const presets = presetsData || [];
+      const sessions = sessionsData || [];
+
+      // Update state
+      setAnimations(animations);
+      setSounds(sounds);
+      setPresets(presets);
+      setSavedSessions(sessions);
+
+      // Update cache
+      dataCache.current = {
+        animations,
+        sounds,
+        presets,
+        sessions,
+        timestamp: now,
+      };
+
+      console.log("[ChillPomodoro] Data loaded and cached");
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.error("[ChillPomodoro] Error loading data:", error);
       setAnimations([]);
       setSounds([]);
       setPresets([]);
       setSavedSessions([]);
+
+      // Show user-friendly error
+      alert("Không thể tải dữ liệu. Vui lòng refresh trang.");
     }
   };
 
@@ -186,42 +291,50 @@ function FocusPage() {
   };
 
   const handleStartPause = () => {
-    if (!isRunning) {
-      // Start playing all selected sounds
-      soundTracks.forEach((track) => {
-        if (track.selectedSound) {
-          const trackVolume = track.volume || 1.0;
+    try {
+      if (!isRunning) {
+        // Start playing all selected sounds
+        soundTracks.forEach((track) => {
+          if (track.selectedSound) {
+            const trackVolume = track.volume || 1.0;
 
-          if (track.type === "single") {
-            const sound = sounds.find((s) => s.id === track.selectedSound);
-            if (sound) {
-              const finalVolume = (sound.volume || 1.0) * trackVolume;
-              audioManager.playSound(track.id, sound.url, true, finalVolume);
-            }
-          } else if (track.type === "preset") {
-            const preset = presets.find((p) => p.id === track.selectedSound);
-            if (preset && preset.soundIds) {
-              preset.soundIds.forEach((soundId) => {
-                const sound = sounds.find((s) => s.id === soundId);
-                if (sound) {
-                  const finalVolume = (sound.volume || 1.0) * trackVolume;
-                  audioManager.playSound(
-                    `${track.id}_${soundId}`,
-                    sound.url,
-                    true,
-                    finalVolume
-                  );
-                }
-              });
+            if (track.type === "single") {
+              const sound = sounds.find((s) => s.id === track.selectedSound);
+              if (sound) {
+                const finalVolume = (sound.volume || 1.0) * trackVolume;
+                audioManager.playSound(track.id, sound.url, true, finalVolume);
+              }
+            } else if (track.type === "preset") {
+              const preset = presets.find((p) => p.id === track.selectedSound);
+              if (preset && preset.soundIds) {
+                preset.soundIds.forEach((soundId) => {
+                  const sound = sounds.find((s) => s.id === soundId);
+                  if (sound) {
+                    const finalVolume = (sound.volume || 1.0) * trackVolume;
+                    audioManager.playSound(
+                      `${track.id}_${soundId}`,
+                      sound.url,
+                      true,
+                      finalVolume
+                    );
+                  }
+                });
+              }
             }
           }
-        }
-      });
-    } else {
-      audioManager.stopAll();
-    }
+        });
+      } else {
+        audioManager.stopAll();
+      }
 
-    setIsRunning(!isRunning);
+      setIsRunning(!isRunning);
+    } catch (error) {
+      console.error("[ChillPomodoro] Error in handleStartPause:", error);
+      // Try to recover
+      audioManager.stopAll();
+      setIsRunning(false);
+      alert("Có lỗi xảy ra. Vui lòng thử lại.");
+    }
   };
 
   const handleReset = () => {
@@ -278,17 +391,33 @@ function FocusPage() {
   };
 
   const handleLoadSession = (session) => {
-    setSelectedBackground(session.background);
-    setSoundTracks(
-      session.soundTracks || [
-        { id: Date.now(), selectedSound: null, type: "single", volume: 1.0 },
-      ]
-    );
-    setWorkTime(session.workTime);
-    setBreakTime(session.breakTime);
-    setShowLoadModal(false);
-    handleReset();
+    try {
+      setSelectedBackground(session.background);
+      setSoundTracks(
+        session.soundTracks || [
+          { id: Date.now(), selectedSound: null, type: "single", volume: 1.0 },
+        ]
+      );
+      setWorkTime(session.workTime);
+      setBreakTime(session.breakTime);
+      setShowLoadModal(false);
+      handleReset();
+    } catch (error) {
+      console.error("[ChillPomodoro] Error loading session:", error);
+      alert("Không thể tải session. Vui lòng thử lại.");
+    }
   };
+
+  // Memory cleanup - Release unused background resources
+  useEffect(() => {
+    // Cleanup when background changes
+    return () => {
+      // Force garbage collection hint for old background
+      if (window.gc) {
+        window.gc();
+      }
+    };
+  }, [selectedBackground]);
 
   const handleDeleteSession = (id) => {
     if (window.confirm("Bạn có chắc muốn xóa session này?")) {
@@ -337,37 +466,39 @@ function FocusPage() {
     >
       {/* Background Container - Responsive */}
       <div className="absolute inset-0 w-full h-full">
-        {/* Blur Background Layer - fills entire space */}
-        {(backgroundImage || backgroundVideo) && backgroundMode === "fit" && (
-          <div className="absolute inset-0 w-full h-full overflow-hidden">
-            {backgroundImage && (
-              <div
-                className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
-                style={{
-                  backgroundImage: `url(${backgroundImage})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  filter: "blur(40px) brightness(0.7)",
-                  transform: "scale(1.1)",
-                }}
-              />
-            )}
-            {backgroundVideo && (
-              <video
-                src={backgroundVideo}
-                className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
-                style={{
-                  filter: "blur(40px) brightness(0.7)",
-                  transform: "scale(1.1)",
-                }}
-                autoPlay
-                loop
-                muted
-                playsInline
-              />
-            )}
-          </div>
-        )}
+        {/* Blur Background Layer - Desktop only (too heavy for mobile) */}
+        {!isMobile &&
+          (backgroundImage || backgroundVideo) &&
+          backgroundMode === "fit" && (
+            <div className="absolute inset-0 w-full h-full overflow-hidden">
+              {backgroundImage && (
+                <div
+                  className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
+                  style={{
+                    backgroundImage: `url(${backgroundImage})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    filter: "blur(40px) brightness(0.7)",
+                    transform: "scale(1.1)",
+                  }}
+                />
+              )}
+              {backgroundVideo && (
+                <video
+                  src={backgroundVideo}
+                  className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
+                  style={{
+                    filter: "blur(40px) brightness(0.7)",
+                    transform: "scale(1.1)",
+                  }}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+              )}
+            </div>
+          )}
 
         {/* Main Background - sharp, centered */}
         {backgroundImage && !backgroundVideo && (
@@ -399,6 +530,9 @@ function FocusPage() {
               muted
               playsInline
               webkit-playsinline="true"
+              preload={isMobile ? "metadata" : "auto"}
+              disablePictureInPicture
+              controlsList="nodownload nofullscreen noremoteplayback"
             />
           </div>
         )}

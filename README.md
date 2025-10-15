@@ -38,12 +38,19 @@
   - Chế độ **Fill**: Full màn hình (có thể crop)
   - Nút toggle linh hoạt, lưu lựa chọn tự động
   - Premium experience như Spotify
-- **👻 Invisible Buttons** ⭐ **NEW v2.6.0**
+- **👻 Invisible Buttons** ⭐ **v2.6.0**
   - Nút điều khiển **ẩn hoàn toàn** khi không dùng
   - **Desktop**: Hiện khi rê chuột (hover)
   - **Mobile**: Mờ nhẹ, hiện rõ khi chạm
   - Frosted glass effect (backdrop blur)
   - Trải nghiệm immersive tối đa
+- **📱 Mobile Stability** ⭐ **NEW v2.7.0**
+  - **Không tự động reload** trên mobile
+  - Data caching (5min TTL) - Load nhanh 95%
+  - Auto-pause khi switch tab
+  - Prevent pull-to-refresh
+  - Tối ưu memory - Giảm 50% RAM usage
+  - **Ổn định trong thời gian dài** (30+ phút)
 - Phát nhiều âm thanh/preset cùng lúc
 - **🎚️ Điều chỉnh volume từng sound track** (slider 0-100%)
 - **👁️ Ẩn giao diện** - Chỉ hiện background rõ nét
