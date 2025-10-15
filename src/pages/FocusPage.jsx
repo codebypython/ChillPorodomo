@@ -18,6 +18,7 @@ import {
   Trash2,
   Maximize2,
   Minimize2,
+  Sliders,
 } from "lucide-react";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
@@ -68,6 +69,7 @@ function FocusPage() {
   // Hide UI State
   const [isUIHidden, setIsUIHidden] = useState(false);
   const [showTimerWhenHidden, setShowTimerWhenHidden] = useState(false);
+  const [showVolumePanel, setShowVolumePanel] = useState(false);
 
   // Background Mode State: 'fit' (contain) or 'fill' (cover)
   const [backgroundMode, setBackgroundMode] = useState(() => {
@@ -77,6 +79,8 @@ function FocusPage() {
 
   const timerRef = useRef(null);
   const breakTimerRef = useRef(null);
+  const videoRef = useRef(null);
+  const blurVideoRef = useRef(null);
 
   // Cache data to prevent reloading
   const dataCache = useRef({
@@ -125,15 +129,38 @@ function FocusPage() {
       setIsPageVisible(isVisible);
 
       if (!isVisible && isRunning) {
-        // Tab hidden - pause timer and audio
+        // Tab hidden - pause timer and audio (keep videos running)
         wasRunningBeforeHidden.current = true;
         setIsRunning(false);
         audioManager.stopAll();
         console.log("[ChillPomodoro] Tab hidden - paused");
+
+        // Keep videos playing in background (if exists)
+        if (backgroundVideo) {
+          if (videoRef.current) {
+            videoRef.current.play().catch(() => {});
+          }
+          if (blurVideoRef.current && !isMobile) {
+            blurVideoRef.current.play().catch(() => {});
+          }
+        }
       } else if (isVisible && wasRunningBeforeHidden.current) {
-        // Tab visible again - resume
+        // Tab visible again - resume videos if needed
         wasRunningBeforeHidden.current = false;
-        // Don't auto-resume, let user decide
+
+        // Ensure videos are playing
+        if (backgroundVideo) {
+          if (videoRef.current) {
+            videoRef.current.play().catch((err) => {
+              console.warn("[ChillPomodoro] Main video resume failed:", err);
+            });
+          }
+          if (blurVideoRef.current && !isMobile) {
+            blurVideoRef.current.play().catch(() => {});
+          }
+        }
+
+        // Don't auto-resume timer, let user decide
         console.log("[ChillPomodoro] Tab visible - ready to resume");
       }
     };
@@ -154,7 +181,7 @@ function FocusPage() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("beforeunload", preventUnload);
     };
-  }, [isRunning]);
+  }, [isRunning, backgroundVideo]);
 
   // ESC key to toggle UI visibility
   useEffect(() => {
@@ -293,6 +320,24 @@ function FocusPage() {
   const handleStartPause = () => {
     try {
       if (!isRunning) {
+        // Ensure videos play when starting (user interaction)
+        if (backgroundVideo) {
+          // Play main video
+          if (videoRef.current) {
+            videoRef.current.play().catch((err) => {
+              console.warn(
+                "[ChillPomodoro] Main video play on start failed:",
+                err
+              );
+            });
+          }
+
+          // Play blur video (desktop only)
+          if (blurVideoRef.current && !isMobile) {
+            blurVideoRef.current.play().catch(() => {});
+          }
+        }
+
         // Start playing all selected sounds
         soundTracks.forEach((track) => {
           if (track.selectedSound) {
@@ -325,6 +370,8 @@ function FocusPage() {
         });
       } else {
         audioManager.stopAll();
+        // Don't pause videos when stopping timer - keep them playing
+        // Videos should keep looping in background
       }
 
       setIsRunning(!isRunning);
@@ -341,6 +388,24 @@ function FocusPage() {
     setIsRunning(false);
     setTimeLeft(isWorkMode ? workTime * 60 : breakTime * 60);
     audioManager.stopAll();
+
+    // Keep videos playing after reset
+    if (backgroundVideo) {
+      // Play main video
+      if (videoRef.current) {
+        videoRef.current.play().catch((err) => {
+          console.warn(
+            "[ChillPomodoro] Main video play after reset failed:",
+            err
+          );
+        });
+      }
+
+      // Play blur video (desktop only)
+      if (blurVideoRef.current && !isMobile) {
+        blurVideoRef.current.play().catch(() => {});
+      }
+    }
   };
 
   const handleAddSoundTrack = () => {
@@ -367,6 +432,39 @@ function FocusPage() {
           : t
       )
     );
+  };
+
+  // Update volume in realtime while running
+  const handleRealtimeVolumeChange = (trackId, newVolume) => {
+    // Update state
+    setSoundTracks(
+      soundTracks.map((t) =>
+        t.id === trackId ? { ...t, volume: newVolume } : t
+      )
+    );
+
+    // Update audio manager immediately
+    const track = soundTracks.find((t) => t.id === trackId);
+    if (track && track.selectedSound) {
+      if (track.type === "single") {
+        const sound = sounds.find((s) => s.id === track.selectedSound);
+        if (sound) {
+          const finalVolume = (sound.volume || 1.0) * newVolume;
+          audioManager.setVolume(trackId, finalVolume);
+        }
+      } else if (track.type === "preset") {
+        const preset = presets.find((p) => p.id === track.selectedSound);
+        if (preset && preset.soundIds) {
+          preset.soundIds.forEach((soundId) => {
+            const sound = sounds.find((s) => s.id === soundId);
+            if (sound) {
+              const finalVolume = (sound.volume || 1.0) * newVolume;
+              audioManager.setVolume(`${trackId}_${soundId}`, finalVolume);
+            }
+          });
+        }
+      }
+    }
   };
 
   const handleSaveSession = () => {
@@ -408,10 +506,50 @@ function FocusPage() {
     }
   };
 
+  // Ensure video plays when background is selected or timer starts
+  useEffect(() => {
+    if (backgroundVideo) {
+      // Try to play main video
+      if (videoRef.current) {
+        const playPromise = videoRef.current.play();
+
+        if (playPromise !== undefined) {
+          playPromise
+            .then(() => {
+              console.log("[ChillPomodoro] Main video playing");
+            })
+            .catch((error) => {
+              console.warn("[ChillPomodoro] Video autoplay blocked:", error);
+              // This is normal - video will play on user interaction
+            });
+        }
+      }
+
+      // Try to play blur video (desktop only)
+      if (blurVideoRef.current && !isMobile) {
+        blurVideoRef.current.play().catch(() => {
+          // Ignore blur video play errors
+        });
+      }
+    }
+  }, [backgroundVideo, isRunning, isMobile]);
+
   // Memory cleanup - Release unused background resources
   useEffect(() => {
     // Cleanup when background changes
     return () => {
+      // Stop main video if exists
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = "";
+      }
+
+      // Stop blur video if exists
+      if (blurVideoRef.current) {
+        blurVideoRef.current.pause();
+        blurVideoRef.current.src = "";
+      }
+
       // Force garbage collection hint for old background
       if (window.gc) {
         window.gc();
@@ -485,6 +623,7 @@ function FocusPage() {
               )}
               {backgroundVideo && (
                 <video
+                  ref={blurVideoRef}
                   src={backgroundVideo}
                   className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
                   style={{
@@ -495,6 +634,12 @@ function FocusPage() {
                   loop
                   muted
                   playsInline
+                  onLoadedData={() => {
+                    // Ensure blur video plays
+                    if (blurVideoRef.current) {
+                      blurVideoRef.current.play().catch(() => {});
+                    }
+                  }}
                 />
               )}
             </div>
@@ -516,6 +661,7 @@ function FocusPage() {
         {backgroundVideo && (
           <div className="absolute inset-0 w-full h-full flex items-center justify-center">
             <video
+              ref={videoRef}
               src={backgroundVideo}
               className={`transition-all duration-500 ${
                 backgroundMode === "fit"
@@ -533,6 +679,14 @@ function FocusPage() {
               preload={isMobile ? "metadata" : "auto"}
               disablePictureInPicture
               controlsList="nodownload nofullscreen noremoteplayback"
+              onLoadedData={() => {
+                // Try to play when video is loaded
+                if (videoRef.current) {
+                  videoRef.current.play().catch((err) => {
+                    console.warn("[ChillPomodoro] Video play failed:", err);
+                  });
+                }
+              }}
             />
           </div>
         )}
@@ -591,6 +745,105 @@ function FocusPage() {
               )}
             </button>
           )}
+          {/* Volume Panel Button - Only show when timer is running */}
+          {isRunning && (
+            <button
+              onClick={() => setShowVolumePanel(!showVolumePanel)}
+              className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
+              title={
+                showVolumePanel
+                  ? "Đóng điều chỉnh âm lượng"
+                  : "Điều chỉnh âm lượng"
+              }
+            >
+              <Sliders
+                size={18}
+                className={showVolumePanel ? "text-blue-300" : ""}
+              />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Volume Control Panel - Floating */}
+      {isUIHidden && showVolumePanel && isRunning && (
+        <div
+          className="absolute bottom-4 left-4 right-4 sm:bottom-auto sm:top-24 sm:right-4 sm:left-auto sm:w-96 z-40"
+          style={{
+            paddingBottom: "env(safe-area-inset-bottom)",
+            paddingLeft: "env(safe-area-inset-left)",
+            paddingRight: "env(safe-area-inset-right)",
+          }}
+        >
+          <div className="bg-black bg-opacity-80 backdrop-filter backdrop-blur-xl rounded-2xl p-4 sm:p-6 shadow-2xl border border-white border-opacity-20">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                <Volume2 size={20} />
+                <span>Điều chỉnh âm lượng</span>
+              </h3>
+              <button
+                onClick={() => setShowVolumePanel(false)}
+                className="text-white hover:text-red-400 transition-colors p-1 rounded-full hover:bg-white hover:bg-opacity-10"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4 max-h-[50vh] overflow-y-auto">
+              {soundTracks
+                .filter((track) => track.selectedSound)
+                .map((track, index) => {
+                  const soundName =
+                    track.type === "single"
+                      ? sounds.find((s) => s.id === track.selectedSound)?.name
+                      : presets.find((p) => p.id === track.selectedSound)?.name;
+
+                  return (
+                    <div
+                      key={track.id}
+                      className="bg-white bg-opacity-10 rounded-lg p-3 border border-white border-opacity-10"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-white text-sm font-medium truncate flex-1">
+                          {soundName || `Sound ${index + 1}`}
+                        </span>
+                        <span className="text-white text-xs opacity-75 ml-2">
+                          {Math.round((track.volume || 1.0) * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Volume2
+                          size={16}
+                          className="text-white opacity-75 flex-shrink-0"
+                        />
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={track.volume || 1.0}
+                          onChange={(e) =>
+                            handleRealtimeVolumeChange(
+                              track.id,
+                              parseFloat(e.target.value)
+                            )
+                          }
+                          className="flex-1 h-2 bg-white bg-opacity-20 rounded-lg appearance-none cursor-pointer slider"
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+
+              {soundTracks.filter((track) => track.selectedSound).length ===
+                0 && (
+                <div className="text-white text-center py-6 opacity-75">
+                  <Volume2 size={32} className="mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Không có âm thanh nào đang phát</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
