@@ -396,35 +396,26 @@ button svg {
   transition: all 0.3s ease;
 }
 
-/* Floating Video Player Styles */
-.floating-video-player {
+/* Fullscreen Video Player Styles */
+.fullscreen-video-player {
   -webkit-user-select: none;
   -moz-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  overscroll-behavior: none;
 }
 
-.floating-video-player video {
+.fullscreen-video-player video,
+.fullscreen-video-player [style*="backgroundImage"] {
   -webkit-user-select: none;
   -moz-user-select: none;
   user-select: none;
   pointer-events: none;
-}
-
-/* Draggable indicator animation */
-@keyframes pulse-drag {
-  0%,
-  100% {
-    opacity: 0.3;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
-.drag-indicator {
-  animation: pulse-drag 2s ease-in-out infinite;
+  /* Hardware acceleration */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 /* Hide video native controls */
@@ -436,63 +427,98 @@ video::-webkit-media-controls-enclosure {
   display: none !important;
 }
 
+/* Smooth zoom and pan transitions */
+.fullscreen-video-player video,
+.fullscreen-video-player [style*="backgroundImage"] {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent pull-to-refresh during zoom/pan */
+.fullscreen-video-player[style*="touch-action: none"] {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Volume slider for video player */
-.video-controls input[type="range"] {
+input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
 }
 
-.video-controls input[type="range"]::-webkit-slider-thumb {
+input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #fff;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-.video-controls input[type="range"]::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: #fff;
   cursor: pointer;
   border: none;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
 }
 
-.video-controls input[type="range"]::-webkit-slider-runnable-track {
-  height: 3px;
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
   background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
 }
 
-.video-controls input[type="range"]::-moz-range-track {
-  height: 3px;
+input[type="range"]::-moz-range-track {
+  height: 4px;
   background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
 }
 
-/* Responsive floating video player */
+/* Fullscreen API support */
+:-webkit-full-screen {
+  width: 100%;
+  height: 100%;
+}
+
+:-moz-full-screen {
+  width: 100%;
+  height: 100%;
+}
+
+:-ms-fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+:fullscreen {
+  width: 100%;
+  height: 100%;
+}
+
+/* Mobile optimizations */
 @media (max-width: 768px) {
-  /* Make video player smaller on mobile by default */
-  .floating-video-player {
-    max-width: 90vw !important;
-    max-height: 50vh !important;
-  }
-
   /* Hide volume slider on very small screens */
   @media (max-width: 480px) {
-    .video-controls input[type="range"] {
-      display: none;
+    input[type="range"] {
+      width: 50px !important;
     }
+  }
+
+  /* Larger touch targets */
+  button {
+    min-width: 48px;
+    min-height: 48px;
   }
 }
 
-/* Prevent body scroll when dragging video player */
-body.dragging-video {
+/* Prevent body scroll when video player is active */
+body.video-player-active {
   overflow: hidden;
-  user-select: none;
+  position: fixed;
+  width: 100%;
+  height: 100%;
 }

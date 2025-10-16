@@ -110,6 +110,19 @@ function FocusPage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isUIHidden, isBackgroundVisible]);
 
+  // Prevent body scroll when video player is active
+  useEffect(() => {
+    if (isBackgroundVisible) {
+      document.body.classList.add("video-player-active");
+    } else {
+      document.body.classList.remove("video-player-active");
+    }
+
+    return () => {
+      document.body.classList.remove("video-player-active");
+    };
+  }, [isBackgroundVisible]);
+
   // Update time left when work/break time changes
   useEffect(() => {
     if (!isRunning) {
