@@ -25,17 +25,15 @@ function VideoPlayer({
   const [volume, setVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [size, setSize] = useState({
-    width: window.innerWidth,
-    height: window.innerHeight,
-  });
+  const [size, setSize] = useState({ width: 640, height: 360 });
 
-  // Initialize position and size (fullscreen by default)
+  // Initialize position (center of screen)
   useEffect(() => {
-    // Start fullscreen
-    setSize({ width: window.innerWidth, height: window.innerHeight });
-    setPosition({ x: 0, y: 0 });
+    const centerX = (window.innerWidth - size.width) / 2;
+    const centerY = (window.innerHeight - size.height) / 2;
+    setPosition({ x: centerX, y: centerY });
   }, []);
 
   const handlePlayPause = () => {
@@ -76,32 +74,30 @@ function VideoPlayer({
 
   const handleMinimize = () => {
     if (isMinimized) {
-      // Expand to fullscreen
-      setSize({ width: window.innerWidth, height: window.innerHeight });
-      setPosition({ x: 0, y: 0 });
+      setSize({ width: 640, height: 360 });
       setIsMinimized(false);
     } else {
-      // Minimize to corner (bottom right)
-      const isMobile = window.innerWidth < 768;
-      const minimizedWidth = isMobile
-        ? Math.min(300, window.innerWidth - 40)
-        : 400;
-      const minimizedHeight = isMobile
-        ? Math.min(169, window.innerHeight * 0.3)
-        : 225;
-      setSize({ width: minimizedWidth, height: minimizedHeight });
-      setPosition({
-        x: window.innerWidth - minimizedWidth - 20,
-        y: window.innerHeight - minimizedHeight - 20,
-      });
+      setSize({ width: 300, height: 169 });
       setIsMinimized(true);
+    }
+  };
+
+  const handleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+    if (!isFullscreen) {
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+      setPosition({ x: 0, y: 0 });
+    } else {
+      setSize({ width: 640, height: 360 });
+      const centerX = (window.innerWidth - 640) / 2;
+      const centerY = (window.innerHeight - 360) / 2;
+      setPosition({ x: centerX, y: centerY });
     }
   };
 
   const handleMouseDown = (e) => {
     if (e.target.closest(".video-controls")) return;
-    // Only allow dragging when minimized
-    if (!isMinimized) return;
+    if (isFullscreen) return;
 
     dragRef.current = {
       isDragging: true,
@@ -146,28 +142,23 @@ function VideoPlayer({
 
   return (
     <>
-      {/* Backdrop overlay when fullscreen (not minimized) */}
-      {!isMinimized && (
-        <div className="fixed inset-0 bg-black bg-opacity-80 z-40" />
+      {/* Backdrop overlay - semi-transparent, doesn't block content */}
+      {isFullscreen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-40" />
       )}
 
       {/* Floating Video Player */}
       <div
         ref={playerRef}
-        className="floating-video-player fixed bg-black shadow-2xl overflow-hidden"
+        className="floating-video-player fixed bg-black rounded-lg shadow-2xl overflow-hidden"
         style={{
           left: `${position.x}px`,
           top: `${position.y}px`,
           width: `${size.width}px`,
           height: `${size.height}px`,
-          zIndex: 1000,
-          cursor: dragRef.current.isDragging
-            ? "grabbing"
-            : isMinimized
-            ? "grab"
-            : "default",
+          zIndex: isFullscreen ? 50 : 1000,
+          cursor: dragRef.current.isDragging ? "grabbing" : "grab",
           transition: dragRef.current.isDragging ? "none" : "all 0.3s ease",
-          borderRadius: isMinimized ? "0.5rem" : "0",
         }}
         onMouseDown={handleMouseDown}
       >
@@ -258,28 +249,37 @@ function VideoPlayer({
                 )}
               </button>
 
-              {/* Minimize/Expand */}
+              {/* Minimize/Maximize */}
               <button
                 onClick={handleMinimize}
                 className="text-white hover:scale-110 transition-transform"
-                title={isMinimized ? "Phóng to toàn màn hình" : "Thu nhỏ"}
+                title={isMinimized ? "Maximize" : "Minimize"}
               >
-                {isMinimized ? <Maximize size={20} /> : <Minus size={20} />}
+                <Minus size={18} />
+              </button>
+
+              {/* Fullscreen Toggle */}
+              <button
+                onClick={handleFullscreen}
+                className="text-white hover:scale-110 transition-transform"
+                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+              >
+                {isFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
               </button>
 
               {/* Close */}
               <button
                 onClick={onClose}
                 className="text-white hover:scale-110 transition-transform hover:text-red-500"
-                title="Đóng"
+                title="Close"
               >
                 <X size={20} />
               </button>
             </div>
           </div>
 
-          {/* Draggable indicator - only show when minimized */}
-          {isMinimized && (
+          {/* Draggable indicator */}
+          {!isFullscreen && (
             <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-black/50 to-transparent cursor-grab flex items-center justify-center">
               <div className="drag-indicator w-12 h-1 bg-white/30 rounded-full" />
             </div>
