@@ -1,15 +1,13 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  ArrowLeft,
+  X,
   Play,
   Pause,
   Volume2,
   VolumeX,
-  SkipBack,
-  SkipForward,
   Maximize,
   Minimize,
-  Settings,
+  Minus,
 } from "lucide-react";
 
 function VideoPlayer({
@@ -20,94 +18,24 @@ function VideoPlayer({
   onToggleMode,
 }) {
   const videoRef = useRef(null);
-  const containerRef = useRef(null);
-  const progressBarRef = useRef(null);
+  const playerRef = useRef(null);
+  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0 });
 
   const [isPlaying, setIsPlaying] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(1);
-  const [isMuted, setIsMuted] = useState(true); // Muted by default for autoplay
-  const [showControls, setShowControls] = useState(true);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [buffered, setBuffered] = useState(0);
+  const [volume, setVolume] = useState(0.5);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [size, setSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
-  const controlsTimeoutRef = useRef(null);
-
-  // Auto-hide controls after 3 seconds of inactivity
+  // Initialize position and size (fullscreen by default)
   useEffect(() => {
-    const resetControlsTimer = () => {
-      setShowControls(true);
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-      if (isPlaying) {
-        controlsTimeoutRef.current = setTimeout(() => {
-          setShowControls(false);
-          setShowSpeedMenu(false);
-        }, 3000);
-      }
-    };
-
-    resetControlsTimer();
-
-    return () => {
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-    };
-  }, [isPlaying]);
-
-  // Video event listeners
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
-    };
-
-    const handleDurationChange = () => {
-      setDuration(video.duration);
-    };
-
-    const handleProgress = () => {
-      if (video.buffered.length > 0) {
-        const bufferedEnd = video.buffered.end(video.buffered.length - 1);
-        const percentage = (bufferedEnd / video.duration) * 100;
-        setBuffered(percentage);
-      }
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-    };
-
-    video.addEventListener("timeupdate", handleTimeUpdate);
-    video.addEventListener("durationchange", handleDurationChange);
-    video.addEventListener("progress", handleProgress);
-    video.addEventListener("ended", handleEnded);
-
-    return () => {
-      video.removeEventListener("timeupdate", handleTimeUpdate);
-      video.removeEventListener("durationchange", handleDurationChange);
-      video.removeEventListener("progress", handleProgress);
-      video.removeEventListener("ended", handleEnded);
-    };
-  }, []);
-
-  // Fullscreen change listener
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
-
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenChange);
-    };
+    // Start fullscreen
+    setSize({ width: window.innerWidth, height: window.innerHeight });
+    setPosition({ x: 0, y: 0 });
   }, []);
 
   const handlePlayPause = () => {
@@ -120,30 +48,6 @@ function VideoPlayer({
       video.play();
     }
     setIsPlaying(!isPlaying);
-  };
-
-  const handleSeek = (e) => {
-    const video = videoRef.current;
-    const progressBar = progressBarRef.current;
-    if (!video || !progressBar) return;
-
-    const rect = progressBar.getBoundingClientRect();
-    const pos = (e.clientX - rect.left) / rect.width;
-    video.currentTime = pos * video.duration;
-  };
-
-  const handleSkipBack = () => {
-    const video = videoRef.current;
-    if (video) {
-      video.currentTime = Math.max(0, video.currentTime - 10);
-    }
-  };
-
-  const handleSkipForward = () => {
-    const video = videoRef.current;
-    if (video) {
-      video.currentTime = Math.min(video.duration, video.currentTime + 10);
-    }
   };
 
   const handleVolumeChange = (e) => {
@@ -170,204 +74,158 @@ function VideoPlayer({
     }
   };
 
-  const handleSpeedChange = (speed) => {
-    const video = videoRef.current;
-    if (video) {
-      video.playbackRate = speed;
-      setPlaybackRate(speed);
-      setShowSpeedMenu(false);
+  const handleMinimize = () => {
+    if (isMinimized) {
+      // Expand to fullscreen
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+      setPosition({ x: 0, y: 0 });
+      setIsMinimized(false);
+    } else {
+      // Minimize to corner (bottom right)
+      const isMobile = window.innerWidth < 768;
+      const minimizedWidth = isMobile
+        ? Math.min(300, window.innerWidth - 40)
+        : 400;
+      const minimizedHeight = isMobile
+        ? Math.min(169, window.innerHeight * 0.3)
+        : 225;
+      setSize({ width: minimizedWidth, height: minimizedHeight });
+      setPosition({
+        x: window.innerWidth - minimizedWidth - 20,
+        y: window.innerHeight - minimizedHeight - 20,
+      });
+      setIsMinimized(true);
     }
   };
 
-  const handleFullscreenToggle = async () => {
-    const container = containerRef.current;
-    if (!container) return;
+  const handleMouseDown = (e) => {
+    if (e.target.closest(".video-controls")) return;
+    // Only allow dragging when minimized
+    if (!isMinimized) return;
 
-    try {
-      if (!document.fullscreenElement) {
-        await container.requestFullscreen();
-      } else {
-        await document.exitFullscreen();
-      }
-    } catch (error) {
-      console.error("Fullscreen error:", error);
-    }
+    dragRef.current = {
+      isDragging: true,
+      startX: e.clientX - position.x,
+      startY: e.clientY - position.y,
+    };
+
+    // Prevent body scroll while dragging
+    document.body.classList.add("dragging-video");
   };
 
-  const formatTime = (seconds) => {
-    if (isNaN(seconds)) return "0:00";
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  const handleMouseMove = (e) => {
+    if (!dragRef.current.isDragging) return;
+
+    const newX = e.clientX - dragRef.current.startX;
+    const newY = e.clientY - dragRef.current.startY;
+
+    // Keep within screen bounds
+    const maxX = window.innerWidth - size.width;
+    const maxY = window.innerHeight - size.height;
+
+    setPosition({
+      x: Math.min(Math.max(0, newX), maxX),
+      y: Math.min(Math.max(0, newY), maxY),
+    });
   };
 
-  const handleMouseMove = () => {
-    setShowControls(true);
+  const handleMouseUp = () => {
+    dragRef.current.isDragging = false;
+    document.body.classList.remove("dragging-video");
   };
+
+  useEffect(() => {
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [position, size]);
 
   return (
-    <div
-      ref={containerRef}
-      className="video-player-container fixed inset-0 w-full h-full z-50 bg-black"
-      style={{ height: "100dvh" }}
-      onMouseMove={handleMouseMove}
-      onClick={() => setShowControls(true)}
-    >
-      {/* Video/Image Container */}
-      <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-        {videoUrl ? (
-          <video
-            ref={videoRef}
-            src={videoUrl}
-            className="w-full h-full"
-            style={{
-              objectFit: backgroundMode === "fit" ? "contain" : "cover",
-            }}
-            autoPlay
-            loop
-            muted={isMuted}
-            playsInline
-            webkit-playsinline="true"
-          />
-        ) : imageUrl ? (
-          <div
-            className="w-full h-full"
-            style={{
-              backgroundImage: `url(${imageUrl})`,
-              backgroundSize: backgroundMode === "fit" ? "contain" : "cover",
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-            }}
-          />
-        ) : null}
-      </div>
+    <>
+      {/* Backdrop overlay when fullscreen (not minimized) */}
+      {!isMinimized && (
+        <div className="fixed inset-0 bg-black bg-opacity-80 z-40" />
+      )}
 
-      {/* Video Controls Overlay */}
+      {/* Floating Video Player */}
       <div
-        className={`absolute inset-0 transition-opacity duration-300 ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        ref={playerRef}
+        className="floating-video-player fixed bg-black shadow-2xl overflow-hidden"
         style={{
-          background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.8) 100%)",
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          width: `${size.width}px`,
+          height: `${size.height}px`,
+          zIndex: 1000,
+          cursor: dragRef.current.isDragging
+            ? "grabbing"
+            : isMinimized
+            ? "grab"
+            : "default",
+          transition: dragRef.current.isDragging ? "none" : "all 0.3s ease",
+          borderRadius: isMinimized ? "0.5rem" : "0",
         }}
+        onMouseDown={handleMouseDown}
       >
-        {/* Top Bar */}
-        <div
-          className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between"
-          style={{
-            paddingTop: "calc(env(safe-area-inset-top) + 1rem)",
-            paddingLeft: "calc(env(safe-area-inset-left) + 1rem)",
-            paddingRight: "calc(env(safe-area-inset-right) + 1rem)",
-          }}
-        >
-          <button
-            onClick={onClose}
-            className="p-3 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all"
-          >
-            <ArrowLeft size={24} />
-          </button>
-
-          <div className="flex gap-2">
-            <button
-              onClick={onToggleMode}
-              className="p-3 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all"
-            >
-              {backgroundMode === "fit" ? (
-                <Maximize size={20} />
-              ) : (
-                <Minimize size={20} />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Center Play/Pause Button */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <button
-            onClick={handlePlayPause}
-            className="p-6 rounded-full bg-black bg-opacity-60 backdrop-blur-lg text-white hover:bg-opacity-80 transition-all"
-          >
-            {isPlaying ? <Pause size={48} /> : <Play size={48} />}
-          </button>
-        </div>
-
-        {/* Skip Buttons (only for video) */}
-        {videoUrl && (
-          <>
-            <button
-              onClick={handleSkipBack}
-              className="absolute left-1/4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all"
-            >
-              <SkipBack size={32} />
-            </button>
-            <button
-              onClick={handleSkipForward}
-              className="absolute right-1/4 top-1/2 -translate-y-1/2 p-4 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all"
-            >
-              <SkipForward size={32} />
-            </button>
-          </>
-        )}
-
-        {/* Bottom Controls */}
-        {videoUrl && (
-          <div
-            className="absolute bottom-0 left-0 right-0 px-4 pb-4"
-            style={{
-              paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
-              paddingLeft: "calc(env(safe-area-inset-left) + 1rem)",
-              paddingRight: "calc(env(safe-area-inset-right) + 1rem)",
-            }}
-          >
-            {/* Progress Bar */}
+        {/* Video Container */}
+        <div className="relative w-full h-full">
+          {videoUrl ? (
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              className="w-full h-full"
+              style={{
+                objectFit: backgroundMode === "fit" ? "contain" : "cover",
+              }}
+              autoPlay
+              loop
+              muted={isMuted}
+              playsInline
+              webkit-playsinline="true"
+            />
+          ) : imageUrl ? (
             <div
-              ref={progressBarRef}
-              className="w-full h-2 bg-gray-600 rounded-full cursor-pointer mb-3 relative"
-              onClick={handleSeek}
-            >
-              {/* Buffered Progress */}
-              <div
-                className="absolute h-full bg-gray-400 rounded-full"
-                style={{ width: `${buffered}%` }}
-              />
-              {/* Current Progress */}
-              <div
-                className="absolute h-full bg-red-600 rounded-full"
-                style={{ width: `${(currentTime / duration) * 100}%` }}
-              />
-            </div>
+              className="w-full h-full"
+              style={{
+                backgroundImage: `url(${imageUrl})`,
+                backgroundSize: backgroundMode === "fit" ? "contain" : "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+              }}
+            />
+          ) : null}
 
-            {/* Control Buttons */}
-            <div className="video-controls flex items-center justify-between">
-              {/* Left Side */}
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={handlePlayPause}
-                  className="text-white hover:scale-110 transition-transform"
-                >
-                  {isPlaying ? <Pause size={28} /> : <Play size={28} />}
-                </button>
+          {/* Control Bar - Always visible */}
+          <div
+            className="video-controls absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              {/* Play/Pause */}
+              <button
+                onClick={handlePlayPause}
+                className="text-white hover:scale-110 transition-transform"
+                title={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+              </button>
 
-                <div className="flex items-center gap-2 text-white text-sm font-medium">
-                  <span>{formatTime(currentTime)}</span>
-                  <span>/</span>
-                  <span>{formatTime(duration)}</span>
-                </div>
-              </div>
-
-              {/* Right Side */}
-              <div className="flex items-center gap-3">
-                {/* Volume Control */}
+              {/* Volume Control (only for video) */}
+              {videoUrl && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleMuteToggle}
                     className="text-white hover:scale-110 transition-transform"
+                    title={isMuted ? "Unmute" : "Mute"}
                   >
                     {isMuted || volume === 0 ? (
-                      <VolumeX size={24} />
+                      <VolumeX size={20} />
                     ) : (
-                      <Volume2 size={24} />
+                      <Volume2 size={20} />
                     )}
                   </button>
                   <input
@@ -377,59 +235,58 @@ function VideoPlayer({
                     step="0.1"
                     value={isMuted ? 0 : volume}
                     onChange={handleVolumeChange}
-                    className="volume-slider w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-600"
+                    className="w-16 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-white"
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </div>
+              )}
 
-                {/* Speed Control */}
-                <div className="relative">
-                  <button
-                    onClick={() => setShowSpeedMenu(!showSpeedMenu)}
-                    className="text-white hover:scale-110 transition-transform"
-                  >
-                    <Settings size={24} />
-                  </button>
+              <div className="flex-1" />
 
-                  {showSpeedMenu && (
-                    <div className="absolute bottom-full right-0 mb-2 bg-black bg-opacity-90 backdrop-blur-lg rounded-lg overflow-hidden">
-                      <div className="px-4 py-2 text-white text-sm font-medium border-b border-gray-700">
-                        Tốc độ phát lại
-                      </div>
-                      {[2, 1.5, 1.25, 1, 0.75, 0.5].map((speed) => (
-                        <button
-                          key={speed}
-                          onClick={() => handleSpeedChange(speed)}
-                          className={`w-full px-4 py-2 text-left text-white hover:bg-gray-700 transition-colors flex items-center justify-between ${
-                            playbackRate === speed ? "bg-gray-800" : ""
-                          }`}
-                        >
-                          <span>{speed}x</span>
-                          {playbackRate === speed && (
-                            <span className="text-red-600">✓</span>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              {/* Display Mode Toggle */}
+              <button
+                onClick={onToggleMode}
+                className="text-white hover:scale-110 transition-transform"
+                title={
+                  backgroundMode === "fit" ? "Switch to Fill" : "Switch to Fit"
+                }
+              >
+                {backgroundMode === "fit" ? (
+                  <Maximize size={18} />
+                ) : (
+                  <Minimize size={18} />
+                )}
+              </button>
 
-                {/* Fullscreen */}
-                <button
-                  onClick={handleFullscreenToggle}
-                  className="text-white hover:scale-110 transition-transform"
-                >
-                  {isFullscreen ? (
-                    <Minimize size={24} />
-                  ) : (
-                    <Maximize size={24} />
-                  )}
-                </button>
-              </div>
+              {/* Minimize/Expand */}
+              <button
+                onClick={handleMinimize}
+                className="text-white hover:scale-110 transition-transform"
+                title={isMinimized ? "Phóng to toàn màn hình" : "Thu nhỏ"}
+              >
+                {isMinimized ? <Maximize size={20} /> : <Minus size={20} />}
+              </button>
+
+              {/* Close */}
+              <button
+                onClick={onClose}
+                className="text-white hover:scale-110 transition-transform hover:text-red-500"
+                title="Đóng"
+              >
+                <X size={20} />
+              </button>
             </div>
           </div>
-        )}
+
+          {/* Draggable indicator - only show when minimized */}
+          {isMinimized && (
+            <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-black/50 to-transparent cursor-grab flex items-center justify-center">
+              <div className="drag-indicator w-12 h-1 bg-white/30 rounded-full" />
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

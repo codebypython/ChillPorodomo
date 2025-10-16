@@ -396,55 +396,38 @@ button svg {
   transition: all 0.3s ease;
 }
 
-/* Video Player Styles */
-.video-player-container {
+/* Floating Video Player Styles */
+.floating-video-player {
   -webkit-user-select: none;
   -moz-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
-.video-player-container video {
+.floating-video-player video {
   -webkit-user-select: none;
   -moz-user-select: none;
   user-select: none;
+  pointer-events: none;
 }
 
-/* Custom video progress bar */
-input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+/* Draggable indicator animation */
+@keyframes pulse-drag {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
-input[type="range"]::-moz-range-thumb {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  cursor: pointer;
-  border: none;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+.drag-indicator {
+  animation: pulse-drag 2s ease-in-out infinite;
 }
 
-input[type="range"]::-webkit-slider-runnable-track {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 2px;
-}
-
-input[type="range"]::-moz-range-track {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 2px;
-}
-
-/* Hide video controls on mobile when using custom controls */
+/* Hide video native controls */
 video::-webkit-media-controls {
   display: none !important;
 }
@@ -453,23 +436,63 @@ video::-webkit-media-controls-enclosure {
   display: none !important;
 }
 
-/* Video player controls animations */
-.video-controls-fade {
-  transition: opacity 0.3s ease-in-out;
+/* Volume slider for video player */
+.video-controls input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
-/* Mobile optimizations for video player */
+.video-controls input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.video-controls input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.video-controls input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+.video-controls input[type="range"]::-moz-range-track {
+  height: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* Responsive floating video player */
 @media (max-width: 768px) {
-  /* Make buttons larger on mobile */
-  .video-controls button {
-    min-width: 48px;
-    min-height: 48px;
+  /* Make video player smaller on mobile by default */
+  .floating-video-player {
+    max-width: 90vw !important;
+    max-height: 50vh !important;
   }
 
   /* Hide volume slider on very small screens */
   @media (max-width: 480px) {
-    .volume-slider {
+    .video-controls input[type="range"] {
       display: none;
     }
   }
+}
+
+/* Prevent body scroll when dragging video player */
+body.dragging-video {
+  overflow: hidden;
+  user-select: none;
 }
