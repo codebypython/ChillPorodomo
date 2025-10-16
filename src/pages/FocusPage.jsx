@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import Button from "../components/Button";
 import Modal from "../components/Modal";
+import VideoPlayer from "../components/VideoPlayer";
 import {
   getAnimations,
   getSounds,
@@ -397,162 +398,120 @@ function FocusPage() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Video/Background Overlay Layer - Full screen, independent */}
-      {isBackgroundVisible && (backgroundImage || backgroundVideo) && (
-        <div
-          className="video-overlay fixed inset-0 w-full h-full z-50 bg-black"
-          style={{
-            height: "100dvh",
-          }}
-        >
-          {/* Background/Video Layer */}
-          <div className="absolute inset-0 w-full h-full">
-            {/* Blur Background Layer */}
-            {backgroundMode === "fit" && (
-              <div className="absolute inset-0 w-full h-full overflow-hidden">
-                {backgroundImage && (
-                  <div
-                    className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
-                    style={{
-                      backgroundImage: `url(${backgroundImage})`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      filter: "blur(40px) brightness(0.7)",
-                      transform: "scale(1.1)",
-                    }}
-                  />
-                )}
-                {backgroundVideo && (
+      {/* Cinema Video Player - Full screen with zoom controls */}
+      {isBackgroundVisible &&
+        (backgroundImage || backgroundVideo) &&
+        !isUIHidden && (
+          <VideoPlayer
+            videoUrl={backgroundVideo}
+            imageUrl={backgroundImage}
+            onClose={handleToggleBackground}
+            backgroundMode={backgroundMode}
+            onToggleMode={toggleBackgroundMode}
+          />
+        )}
+
+      {/* Simple overlay when UI is hidden - for timer display only */}
+      {isBackgroundVisible &&
+        isUIHidden &&
+        (backgroundImage || backgroundVideo) && (
+          <div
+            className="video-overlay fixed inset-0 w-full h-full z-50 bg-black"
+            style={{
+              height: "100dvh",
+            }}
+          >
+            {/* Background/Video Layer */}
+            <div className="absolute inset-0 w-full h-full">
+              {backgroundImage && (
+                <div
+                  className="absolute inset-0 w-full h-full bg-center bg-no-repeat"
+                  style={{
+                    backgroundImage: `url(${backgroundImage})`,
+                    backgroundSize:
+                      backgroundMode === "fit" ? "contain" : "cover",
+                    backgroundPosition: "center",
+                  }}
+                />
+              )}
+
+              {backgroundVideo && (
+                <div className="absolute inset-0 w-full h-full flex items-center justify-center">
                   <video
+                    ref={videoRef}
                     src={backgroundVideo}
-                    className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
+                    className={`${
+                      backgroundMode === "fit"
+                        ? "max-w-full max-h-full w-auto h-auto"
+                        : "w-full h-full"
+                    }`}
                     style={{
-                      filter: "blur(40px) brightness(0.7)",
-                      transform: "scale(1.1)",
+                      objectFit: backgroundMode === "fit" ? "contain" : "cover",
                     }}
                     autoPlay
                     loop
                     muted
                     playsInline
+                    webkit-playsinline="true"
                   />
-                )}
-              </div>
-            )}
-
-            {/* Main Background/Video */}
-            {backgroundImage && (
-              <div
-                className="absolute inset-0 w-full h-full bg-center bg-no-repeat transition-all duration-500"
-                style={{
-                  backgroundImage: `url(${backgroundImage})`,
-                  backgroundSize:
-                    backgroundMode === "fit" ? "contain" : "cover",
-                  backgroundPosition: "center",
-                }}
-              />
-            )}
-
-            {backgroundVideo && (
-              <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-                <video
-                  ref={videoRef}
-                  src={backgroundVideo}
-                  className={`transition-all duration-500 ${
-                    backgroundMode === "fit"
-                      ? "max-w-full max-h-full w-auto h-auto"
-                      : "w-full h-full"
-                  }`}
-                  style={{
-                    objectFit: backgroundMode === "fit" ? "contain" : "cover",
-                  }}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  webkit-playsinline="true"
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Floating controls when UI hidden */}
-          {isUIHidden && (
-            <>
-              {/* Timer display */}
-              {showTimerWhenHidden && (
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-60">
-                  <div className="text-center">
-                    <div className="text-8xl md:text-9xl font-bold text-white drop-shadow-2xl mb-4">
-                      {formatTime(timeLeft)}
-                    </div>
-                    <div className="text-2xl text-white drop-shadow-lg opacity-80">
-                      {isWorkMode ? "Đang làm việc..." : "Đang nghỉ ngơi..."}
-                    </div>
-                  </div>
                 </div>
               )}
+            </div>
 
-              {/* Control buttons */}
-              <div
-                className="absolute top-4 right-4 z-60 flex flex-col gap-2"
-                style={{
-                  paddingTop: "env(safe-area-inset-top)",
-                  paddingRight: "env(safe-area-inset-right)",
-                }}
-              >
-                <button
-                  onClick={() => setIsUIHidden(false)}
-                  className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
-                  title="Hiện giao diện (ESC)"
-                >
-                  <Eye size={20} />
-                </button>
-                <button
-                  onClick={() => setShowTimerWhenHidden(!showTimerWhenHidden)}
-                  className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
-                  title={showTimerWhenHidden ? "Ẩn đồng hồ" : "Hiện đồng hồ"}
-                >
-                  <Clock size={18} />
-                </button>
-                <button
-                  onClick={toggleBackgroundMode}
-                  className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
-                  title={
-                    backgroundMode === "fit"
-                      ? "Chế độ: Fit → Click để Fill"
-                      : "Chế độ: Fill → Click để Fit"
-                  }
-                >
-                  {backgroundMode === "fit" ? (
-                    <Maximize2 size={18} className="text-purple-300" />
-                  ) : (
-                    <Minimize2 size={18} className="text-green-300" />
-                  )}
-                </button>
+            {/* Timer display when hidden */}
+            {showTimerWhenHidden && (
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-60">
+                <div className="text-center">
+                  <div className="text-8xl md:text-9xl font-bold text-white drop-shadow-2xl mb-4">
+                    {formatTime(timeLeft)}
+                  </div>
+                  <div className="text-2xl text-white drop-shadow-lg opacity-80">
+                    {isWorkMode ? "Đang làm việc..." : "Đang nghỉ ngơi..."}
+                  </div>
+                </div>
               </div>
-            </>
-          )}
+            )}
 
-          {/* Exit button - invisible until hover/touch */}
-          {!isUIHidden && (
+            {/* Control buttons when UI hidden */}
             <div
-              className="absolute top-4 right-4 z-60 btn-invisible-group"
+              className="absolute top-4 right-4 z-60 flex flex-col gap-2"
               style={{
                 paddingTop: "env(safe-area-inset-top)",
                 paddingRight: "env(safe-area-inset-right)",
               }}
             >
               <button
-                onClick={handleToggleBackground}
-                className="btn-invisible floating-btn text-white p-4 rounded-full"
-                title="Thoát chế độ xem background"
+                onClick={() => setIsUIHidden(false)}
+                className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
+                title="Hiện giao diện (ESC)"
               >
-                <ArrowLeft size={24} />
+                <Eye size={20} />
+              </button>
+              <button
+                onClick={() => setShowTimerWhenHidden(!showTimerWhenHidden)}
+                className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
+                title={showTimerWhenHidden ? "Ẩn đồng hồ" : "Hiện đồng hồ"}
+              >
+                <Clock size={18} />
+              </button>
+              <button
+                onClick={toggleBackgroundMode}
+                className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
+                title={
+                  backgroundMode === "fit"
+                    ? "Chế độ: Fit → Click để Fill"
+                    : "Chế độ: Fill → Click để Fit"
+                }
+              >
+                {backgroundMode === "fit" ? (
+                  <Maximize2 size={18} className="text-purple-300" />
+                ) : (
+                  <Minimize2 size={18} className="text-green-300" />
+                )}
               </button>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
       {/* Main UI - Normal layout */}
       <div className="min-h-screen p-4">

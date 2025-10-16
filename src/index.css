@@ -395,3 +395,41 @@ button[title]:active:not(:disabled) {
 button svg {
   transition: all 0.3s ease;
 }
+
+/* Cinema Video Player Styles */
+.video-player-cinema {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.video-player-cinema video,
+.video-player-cinema img {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Smooth zoom and pan transitions */
+.video-player-cinema video,
+.video-player-cinema [style*="backgroundImage"] {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Prevent pull-to-refresh during zoom/pan */
+.video-player-cinema[style*="touch-action: none"] {
+  overscroll-behavior: none;
+}
+
+/* Cinema gradient overlay */
+.cinema-gradient {
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.7) 0%,
+    transparent 20%,
+    transparent 80%,
+    rgba(0, 0, 0, 0.7) 100%
+  );
+}
