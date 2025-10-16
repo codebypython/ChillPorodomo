@@ -29,33 +29,42 @@
 - Phát nhiều âm thanh đồng thời
 - Chỉnh sửa và xóa preset dễ dàng
 
-### ⏱️ Chế độ Focus
+### ⏱️ Chế độ Focus ⭐ **v2.7.0 - TÁI CẤU TRÚC TOÀN DIỆN**
 
-- Timer Pomodoro tùy chỉnh
-- Chọn background từ kho animation (ảnh/GIF/video)
-- **🎨 Smart Blur Background** ⭐ **v2.5.0**
-  - Chế độ **Fit**: Xem trọn vẹn background + blur fill (mặc định)
-  - Chế độ **Fill**: Full màn hình (có thể crop)
-  - Nút toggle linh hoạt, lưu lựa chọn tự động
-  - Premium experience như Spotify
-- **👻 Invisible Buttons** ⭐ **NEW v2.6.0**
-  - Nút điều khiển **ẩn hoàn toàn** khi không dùng
-  - **Desktop**: Hiện khi rê chuột (hover)
-  - **Mobile**: Mờ nhẹ, hiện rõ khi chạm
-  - Frosted glass effect (backdrop blur)
-  - Trải nghiệm immersive tối đa
-- Phát nhiều âm thanh/preset cùng lúc
-- **🎚️ Điều chỉnh volume từng sound track** (slider 0-100%)
-- **👁️ Ẩn giao diện** - Chỉ hiện background rõ nét
-- **🕐 Ẩn cả đồng hồ** - Option ẩn timer khi cần
-- Nhấn ESC hoặc nút để hiện/ẩn giao diện
-- Tự động hiện lại UI khi hết thời gian
+#### 🎯 Điều Khiển Độc Lập (NEW!)
+
+- **Timer riêng biệt**: Start/Pause/Continue không ảnh hưởng âm thanh/video
+- **Âm thanh độc lập**: Bật/tắt nhạc không cần start timer
+- **Video độc lập**: Xem background mà không cần timer/nhạc
+- **Không còn crash trên mobile**: Các tính năng không còn bị "dồn" lại
+
+#### 🎵 Quản Lý Âm Thanh Mới
+
+- **Icon Nốt Nhạc** 🎵: Panel chọn âm thanh (nhiều track)
+- **Icon Loa** 🔊: Bật/tắt phát nhạc (độc lập với timer)
+- **Icon Bánh Răng** ⚙️: Điều chỉnh âm lượng realtime (áp dụng ngay lập tức)
+- **Auto-loop**: Nhạc tự động lặp vô hạn (phù hợp timer 90 phút)
+
+#### 🎬 Video/Background Layer Riêng (như ChillTimer)
+
+- **Icon Ảnh** 🖼️: Chọn background/video
+- **Icon Film** 🎬: Bật video toàn màn hình trên lớp riêng
+- **Auto-loop**: Video tự động lặp vô hạn
+- **Không bị che**: Không bị thanh tìm kiếm mobile che khuất
+- **Chống chạm nhầm**: Ẩn UI để tránh kích hoạt nút không mong muốn
+- **Chế độ Fit/Fill**: Linh hoạt thay đổi kích cỡ video
+
+#### 🎨 Tính Năng Giữ Lại
+
+- Timer Pomodoro tùy chỉnh (15-90 phút)
+- Smart Blur Background (Fit/Fill)
+- Ẩn UI hoàn toàn (ESC hoặc nút)
+- Hiện đồng hồ giữa màn hình khi ẩn UI
 - Âm thanh đếm ngược 10s cuối
 - Popup nghỉ ngơi 20s tự động
-- Lưu và tải lại tiến trình
+- Lưu và tải session
 - Chế độ toàn màn hình
-- Khóa xoay màn hình (landscape)
-- **📱 Responsive hoàn toàn** - Tối ưu cho mobile
+- **📱 Responsive & Mobile-First Design**
 
 ## 🚀 Cài đặt và chạy
 
@@ -228,10 +237,15 @@ npm run deploy
 ### 🚀 Bắt đầu nhanh
 
 - `UPDATE_GUIDE.md` - ⭐ Hướng dẫn cập nhật & deploy dự án
+- `CACH_SU_DUNG_MOI.md` - 🆕 ⭐ **Hướng dẫn sử dụng v2.7.0** (Tái cấu trúc)
+  - Cách sử dụng tính năng mới
+  - Workflow đề xuất
+  - Tips & Tricks
+  - Khắc phục sự cố
 
 ### 📱 Mobile & iOS (v2.2)
 
-- `IOS_FIX_GUIDE.md` - 🆕 ⭐ **Khắc phục lỗi iPhone + Tính năng Google Drive**
+- `IOS_FIX_GUIDE.md` - ⭐ **Khắc phục lỗi iPhone + Tính năng Google Drive**
   - Fix lỗi chọn file MP3 trên iPhone
   - Hướng dẫn 3 cách thêm âm thanh
   - Tải file từ Google Drive
@@ -239,8 +253,9 @@ npm run deploy
 
 ### 📝 Changelog & Release Notes
 
-- `CHANGELOG.md` - 🆕 Lịch sử thay đổi chi tiết (v1.0 → v2.2)
-- `VERSION_2.2_SUMMARY.md` - 🆕 ⭐ Release notes v2.2.0
+- `CHANGELOG.md` - Lịch sử thay đổi chi tiết (v1.0 → v2.7)
+- `VERSION_2.2_SUMMARY.md` - Release notes v2.2.0
+- `PERFORMANCE_OPTIMIZATION_v2.8.md` - Tối ưu hiệu suất
 
 ## 📝 License
 

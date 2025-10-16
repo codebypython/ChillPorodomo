@@ -58,6 +58,14 @@ video {
   transform: translateZ(0);
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
+  /* Optimize video rendering */
+  will-change: transform;
+  /* Prevent pull-to-refresh on video */
+  touch-action: none;
+  /* Disable context menu on long press */
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* Custom range slider */
@@ -181,6 +189,12 @@ button,
     min-height: 44px; /* iOS minimum touch target */
     min-width: 44px;
   }
+
+  /* Icon buttons should be larger on mobile */
+  button[title]:not(.btn-invisible) {
+    min-height: 52px;
+    min-width: 52px;
+  }
 }
 
 /* Invisible buttons - only appear on hover/touch */
@@ -273,4 +287,111 @@ button,
 
 .btn-fade-in {
   animation: fadeInButtons 0.4s ease-out forwards;
+}
+
+/* Video overlay optimizations for mobile */
+.video-overlay {
+  /* Hardware acceleration */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+
+  /* Prevent scrolling when overlay is visible */
+  overscroll-behavior: none;
+
+  /* Smooth transitions */
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Prevent body scroll when video overlay is active */
+body.video-overlay-active {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Performance optimizations for mobile */
+@media (max-width: 768px) {
+  /* Reduce transform complexity on mobile */
+  .video-overlay video {
+    transform: none;
+    -webkit-transform: none;
+  }
+
+  /* Simplify animations on mobile */
+  * {
+    animation-duration: 0.2s !important;
+    transition-duration: 0.2s !important;
+  }
+
+  /* Optimize backdrop blur on mobile */
+  .backdrop-blur-lg {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+/* Landscape mode optimizations for mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  .video-overlay {
+    /* Full viewport in landscape */
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
+/* Loading state for lazy-loaded content */
+.lazy-loading {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Icon button animations */
+button:not(:disabled):active {
+  transform: scale(0.95);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Pulse animation for active states */
+@keyframes pulse-border {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(168, 85, 247, 0);
+  }
+}
+
+.pulse-active {
+  animation: pulse-border 2s ease-in-out infinite;
+}
+
+/* Icon button hover effect */
+button[title]:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+button[title]:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Smooth icon color transitions */
+button svg {
+  transition: all 0.3s ease;
 }

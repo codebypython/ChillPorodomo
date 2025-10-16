@@ -10,11 +10,14 @@ import {
   Pause,
   RotateCcw,
   Maximize,
-  Smartphone,
   ChevronDown,
-  EyeOff,
   Eye,
   Volume2,
+  VolumeX,
+  Music,
+  Settings,
+  Image as ImageIcon,
+  Film,
   Trash2,
   Maximize2,
   Minimize2,
@@ -30,11 +33,7 @@ import {
   deleteSavedSession,
 } from "../utils/storage";
 import { audioManager } from "../utils/audio";
-import {
-  toggleFullscreen,
-  lockOrientation,
-  unlockOrientation,
-} from "../utils/fullscreen";
+import { toggleFullscreen } from "../utils/fullscreen";
 
 function FocusPage() {
   const navigate = useNavigate();
@@ -60,6 +59,15 @@ function FocusPage() {
   const [showBreakPopup, setShowBreakPopup] = useState(false);
   const [breakCountdown, setBreakCountdown] = useState(20);
 
+  // Audio State - Separate from timer
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [showSoundPanel, setShowSoundPanel] = useState(false);
+  const [showVolumePanel, setShowVolumePanel] = useState(false);
+
+  // Background/Video State - Separate from timer and audio
+  const [isBackgroundVisible, setIsBackgroundVisible] = useState(false);
+  const [showBackgroundPanel, setShowBackgroundPanel] = useState(false);
+
   // Modals
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
@@ -77,6 +85,7 @@ function FocusPage() {
 
   const timerRef = useRef(null);
   const breakTimerRef = useRef(null);
+  const videoRef = useRef(null);
 
   // Load data on mount
   useEffect(() => {
@@ -92,14 +101,14 @@ function FocusPage() {
   // ESC key to toggle UI visibility
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.key === "Escape" && isRunning) {
+      if (e.key === "Escape" && isBackgroundVisible) {
         setIsUIHidden(!isUIHidden);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isUIHidden, isRunning]);
+  }, [isUIHidden, isBackgroundVisible]);
 
   // Update time left when work/break time changes
   useEffect(() => {
@@ -155,6 +164,26 @@ function FocusPage() {
     };
   }, [showBreakPopup]);
 
+  // Auto-loop video
+  useEffect(() => {
+    if (videoRef.current && isBackgroundVisible) {
+      videoRef.current.play().catch(console.error);
+    }
+  }, [isBackgroundVisible]);
+
+  // Manage body scroll when video overlay is visible
+  useEffect(() => {
+    if (isBackgroundVisible) {
+      document.body.classList.add("video-overlay-active");
+    } else {
+      document.body.classList.remove("video-overlay-active");
+    }
+
+    return () => {
+      document.body.classList.remove("video-overlay-active");
+    };
+  }, [isBackgroundVisible]);
+
   const loadData = async () => {
     try {
       const [animationsData, soundsData, presetsData, sessionsData] =
@@ -186,7 +215,13 @@ function FocusPage() {
   };
 
   const handleStartPause = () => {
-    if (!isRunning) {
+    // Only control timer, not audio or background
+    setIsRunning(!isRunning);
+  };
+
+  // Separate audio controls
+  const handleToggleAudio = () => {
+    if (!isAudioPlaying) {
       // Start playing all selected sounds
       soundTracks.forEach((track) => {
         if (track.selectedSound) {
@@ -217,17 +252,47 @@ function FocusPage() {
           }
         }
       });
+      setIsAudioPlaying(true);
     } else {
       audioManager.stopAll();
+      setIsAudioPlaying(false);
     }
+  };
 
-    setIsRunning(!isRunning);
+  // Update volume in real-time
+  const handleVolumeChange = (trackId, newVolume) => {
+    // Update state
+    setSoundTracks(
+      soundTracks.map((t) =>
+        t.id === trackId ? { ...t, volume: newVolume } : t
+      )
+    );
+
+    // Apply volume change immediately to playing audio
+    const track = soundTracks.find((t) => t.id === trackId);
+    if (track && track.selectedSound && isAudioPlaying) {
+      if (track.type === "single") {
+        audioManager.setVolume(trackId, newVolume);
+      } else if (track.type === "preset") {
+        const preset = presets.find((p) => p.id === track.selectedSound);
+        if (preset && preset.soundIds) {
+          preset.soundIds.forEach((soundId) => {
+            audioManager.setVolume(`${trackId}_${soundId}`, newVolume);
+          });
+        }
+      }
+    }
+  };
+
+  // Toggle background/video visibility
+  const handleToggleBackground = () => {
+    setIsBackgroundVisible(!isBackgroundVisible);
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setTimeLeft(isWorkMode ? workTime * 60 : breakTime * 60);
-    audioManager.stopAll();
+    // Don't stop audio or background - they're independent from timer
   };
 
   const handleAddSoundTrack = () => {
@@ -239,6 +304,10 @@ function FocusPage() {
 
   const handleRemoveSoundTrack = (id) => {
     setSoundTracks(soundTracks.filter((t) => t.id !== id));
+    // Stop audio for this track if playing
+    if (isAudioPlaying) {
+      audioManager.stopSound(id);
+    }
   };
 
   const handleSoundTrackChange = (id, value, type, volume) => {
@@ -327,386 +396,460 @@ function FocusPage() {
       : null;
 
   return (
-    <div
-      className="fixed inset-0 w-full overflow-hidden"
-      style={{
-        height: "100dvh", // Dynamic viewport height for mobile (fallback to 100vh in CSS)
-        backgroundColor:
-          backgroundImage || backgroundVideo ? "#000" : "#f3f4f6",
-      }}
-    >
-      {/* Background Container - Responsive */}
-      <div className="absolute inset-0 w-full h-full">
-        {/* Blur Background Layer - fills entire space */}
-        {(backgroundImage || backgroundVideo) && backgroundMode === "fit" && (
-          <div className="absolute inset-0 w-full h-full overflow-hidden">
-            {backgroundImage && (
-              <div
-                className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
-                style={{
-                  backgroundImage: `url(${backgroundImage})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                  filter: "blur(40px) brightness(0.7)",
-                  transform: "scale(1.1)",
-                }}
-              />
-            )}
-            {backgroundVideo && (
-              <video
-                src={backgroundVideo}
-                className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
-                style={{
-                  filter: "blur(40px) brightness(0.7)",
-                  transform: "scale(1.1)",
-                }}
-                autoPlay
-                loop
-                muted
-                playsInline
-              />
-            )}
-          </div>
-        )}
-
-        {/* Main Background - sharp, centered */}
-        {backgroundImage && !backgroundVideo && (
-          <div
-            className="absolute inset-0 w-full h-full bg-center bg-no-repeat transition-all duration-500"
-            style={{
-              backgroundImage: `url(${backgroundImage})`,
-              backgroundSize: backgroundMode === "fit" ? "contain" : "cover",
-              backgroundPosition: "center",
-            }}
-          />
-        )}
-
-        {/* Video background - iOS Safari optimized */}
-        {backgroundVideo && (
-          <div className="absolute inset-0 w-full h-full flex items-center justify-center">
-            <video
-              src={backgroundVideo}
-              className={`transition-all duration-500 ${
-                backgroundMode === "fit"
-                  ? "max-w-full max-h-full w-auto h-auto"
-                  : "w-full h-full"
-              }`}
-              style={{
-                objectFit: backgroundMode === "fit" ? "contain" : "cover",
-              }}
-              autoPlay
-              loop
-              muted
-              playsInline
-              webkit-playsinline="true"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Overlay for better readability - with safe area */}
-      {(backgroundImage || backgroundVideo) && !isUIHidden && (
+    <div className="min-h-screen bg-gray-100">
+      {/* Video/Background Overlay Layer - Full screen, independent */}
+      {isBackgroundVisible && (backgroundImage || backgroundVideo) && (
         <div
-          className="absolute inset-0 bg-black bg-opacity-30 backdrop-blur-sm"
+          className="video-overlay fixed inset-0 w-full h-full z-50 bg-black"
           style={{
-            paddingTop: "env(safe-area-inset-top)",
-            paddingBottom: "env(safe-area-inset-bottom)",
-            paddingLeft: "env(safe-area-inset-left)",
-            paddingRight: "env(safe-area-inset-right)",
-          }}
-        ></div>
-      )}
-
-      {/* Floating buttons when UI hidden - invisible until hover/touch */}
-      {isUIHidden && (
-        <div
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 z-50 flex flex-col gap-1.5 btn-invisible-group"
-          style={{
-            paddingTop: "env(safe-area-inset-top)",
-            paddingRight: "env(safe-area-inset-right)",
+            height: "100dvh",
           }}
         >
-          <button
-            onClick={() => setIsUIHidden(false)}
-            className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
-            title="Hiện giao diện (ESC)"
-          >
-            <Eye size={20} />
-          </button>
-          <button
-            onClick={() => setShowTimerWhenHidden(!showTimerWhenHidden)}
-            className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
-            title={showTimerWhenHidden ? "Ẩn đồng hồ" : "Hiện đồng hồ"}
-          >
-            <Clock size={18} />
-          </button>
-          {(backgroundImage || backgroundVideo) && (
-            <button
-              onClick={toggleBackgroundMode}
-              className="btn-invisible floating-btn text-white p-2.5 sm:p-3 rounded-full"
-              title={
-                backgroundMode === "fit"
-                  ? "Chế độ: Fit → Click để Fill"
-                  : "Chế độ: Fill → Click để Fit"
-              }
-            >
-              {backgroundMode === "fit" ? (
-                <Maximize2 size={18} className="text-purple-300" />
-              ) : (
-                <Minimize2 size={18} className="text-green-300" />
+          {/* Background/Video Layer */}
+          <div className="absolute inset-0 w-full h-full">
+            {/* Blur Background Layer */}
+            {backgroundMode === "fit" && (
+              <div className="absolute inset-0 w-full h-full overflow-hidden">
+                {backgroundImage && (
+                  <div
+                    className="absolute inset-0 w-full h-full bg-center blur-3xl scale-110 opacity-60"
+                    style={{
+                      backgroundImage: `url(${backgroundImage})`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      filter: "blur(40px) brightness(0.7)",
+                      transform: "scale(1.1)",
+                    }}
+                  />
+                )}
+                {backgroundVideo && (
+                  <video
+                    src={backgroundVideo}
+                    className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 opacity-60"
+                    style={{
+                      filter: "blur(40px) brightness(0.7)",
+                      transform: "scale(1.1)",
+                    }}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Main Background/Video */}
+            {backgroundImage && (
+              <div
+                className="absolute inset-0 w-full h-full bg-center bg-no-repeat transition-all duration-500"
+                style={{
+                  backgroundImage: `url(${backgroundImage})`,
+                  backgroundSize:
+                    backgroundMode === "fit" ? "contain" : "cover",
+                  backgroundPosition: "center",
+                }}
+              />
+            )}
+
+            {backgroundVideo && (
+              <div className="absolute inset-0 w-full h-full flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  src={backgroundVideo}
+                  className={`transition-all duration-500 ${
+                    backgroundMode === "fit"
+                      ? "max-w-full max-h-full w-auto h-auto"
+                      : "w-full h-full"
+                  }`}
+                  style={{
+                    objectFit: backgroundMode === "fit" ? "contain" : "cover",
+                  }}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  webkit-playsinline="true"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Floating controls when UI hidden */}
+          {isUIHidden && (
+            <>
+              {/* Timer display */}
+              {showTimerWhenHidden && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-60">
+                  <div className="text-center">
+                    <div className="text-8xl md:text-9xl font-bold text-white drop-shadow-2xl mb-4">
+                      {formatTime(timeLeft)}
+                    </div>
+                    <div className="text-2xl text-white drop-shadow-lg opacity-80">
+                      {isWorkMode ? "Đang làm việc..." : "Đang nghỉ ngơi..."}
+                    </div>
+                  </div>
+                </div>
               )}
-            </button>
+
+              {/* Control buttons */}
+              <div
+                className="absolute top-4 right-4 z-60 flex flex-col gap-2"
+                style={{
+                  paddingTop: "env(safe-area-inset-top)",
+                  paddingRight: "env(safe-area-inset-right)",
+                }}
+              >
+                <button
+                  onClick={() => setIsUIHidden(false)}
+                  className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
+                  title="Hiện giao diện (ESC)"
+                >
+                  <Eye size={20} />
+                </button>
+                <button
+                  onClick={() => setShowTimerWhenHidden(!showTimerWhenHidden)}
+                  className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
+                  title={showTimerWhenHidden ? "Ẩn đồng hồ" : "Hiện đồng hồ"}
+                >
+                  <Clock size={18} />
+                </button>
+                <button
+                  onClick={toggleBackgroundMode}
+                  className="bg-black bg-opacity-50 backdrop-blur-lg text-white p-3 rounded-full hover:bg-opacity-70 transition-all shadow-lg"
+                  title={
+                    backgroundMode === "fit"
+                      ? "Chế độ: Fit → Click để Fill"
+                      : "Chế độ: Fill → Click để Fit"
+                  }
+                >
+                  {backgroundMode === "fit" ? (
+                    <Maximize2 size={18} className="text-purple-300" />
+                  ) : (
+                    <Minimize2 size={18} className="text-green-300" />
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* Exit button - invisible until hover/touch */}
+          {!isUIHidden && (
+            <div
+              className="absolute top-4 right-4 z-60 btn-invisible-group"
+              style={{
+                paddingTop: "env(safe-area-inset-top)",
+                paddingRight: "env(safe-area-inset-right)",
+              }}
+            >
+              <button
+                onClick={handleToggleBackground}
+                className="btn-invisible floating-btn text-white p-4 rounded-full"
+                title="Thoát chế độ xem background"
+              >
+                <ArrowLeft size={24} />
+              </button>
+            </div>
           )}
         </div>
       )}
 
-      {/* Floating Timer when UI hidden and showTimerWhenHidden */}
-      {isUIHidden && showTimerWhenHidden && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-40">
-          <div className="text-center">
-            <div className="text-8xl md:text-9xl font-bold text-white drop-shadow-2xl mb-4 animate-pulse">
+      {/* Main UI - Normal layout */}
+      <div className="min-h-screen p-4">
+        <div className="max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={() => {
+                audioManager.stopAll();
+                navigate("/");
+              }}
+              className="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition-colors"
+              title="Quay lại trang chủ"
+            >
+              <ArrowLeft size={24} />
+            </button>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => toggleFullscreen()}
+                className="p-2 rounded-lg text-gray-700 hover:bg-gray-200 transition-colors"
+                title="Toàn màn hình"
+              >
+                <Maximize size={20} />
+              </button>
+            </div>
+          </div>
+
+          {/* Timer Display */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-800 mb-4">
+              {isWorkMode ? "Thời gian làm việc" : "Thời gian nghỉ ngơi"}
+            </h2>
+            <div className="text-8xl font-bold text-purple-600 mb-8">
               {formatTime(timeLeft)}
             </div>
-            <div className="text-2xl text-white drop-shadow-lg opacity-80">
-              {isWorkMode ? "Đang làm việc..." : "Đang nghỉ ngơi..."}
+
+            {/* Timer Controls */}
+            <div className="flex justify-center gap-4 mb-8">
+              <button
+                onClick={handleStartPause}
+                className={`p-5 rounded-2xl transition-all shadow-lg ${
+                  isRunning
+                    ? "bg-yellow-500 hover:bg-yellow-600"
+                    : "bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                } text-white font-semibold`}
+                title={isRunning ? "Tạm dừng" : "Bắt đầu"}
+              >
+                {isRunning ? <Pause size={32} /> : <Play size={32} />}
+              </button>
+              <button
+                onClick={handleReset}
+                className="p-5 rounded-2xl transition-all shadow-lg bg-gray-200 hover:bg-gray-300 text-gray-700"
+                title="Đặt lại"
+              >
+                <RotateCcw size={32} />
+              </button>
             </div>
           </div>
-        </div>
-      )}
 
-      {/* Main Content - with safe area and proper scrolling */}
-      <div
-        className={`relative z-10 flex flex-col transition-opacity duration-500 ${
-          isUIHidden ? "opacity-0 pointer-events-none" : "opacity-100"
-        }`}
-        style={{
-          height: "100dvh",
-          paddingTop: "env(safe-area-inset-top)",
-          paddingBottom: "env(safe-area-inset-bottom)",
-          paddingLeft: "env(safe-area-inset-left)",
-          paddingRight: "env(safe-area-inset-right)",
-        }}
-      >
-        {/* Header - Invisible buttons group */}
-        <div className="p-2 sm:p-4 flex items-center justify-between flex-shrink-0 btn-invisible-group">
-          <button
-            onClick={() => {
-              audioManager.stopAll();
-              navigate("/");
-            }}
-            className="btn-invisible header-btn p-2 rounded-lg text-white"
-            title="Quay lại trang chủ"
-          >
-            <ArrowLeft size={18} />
-          </button>
-
-          <div className="flex gap-1.5 sm:gap-2">
-            {/* Background Mode Toggle */}
-            {(backgroundImage || backgroundVideo) && (
+          {/* Independent Controls Row - Icon Only */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Điều khiển
+            </h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              {/* Sound Selection Panel Toggle */}
               <button
-                onClick={toggleBackgroundMode}
-                className="btn-invisible header-btn p-2 rounded-lg text-white"
-                title={
-                  backgroundMode === "fit"
-                    ? "Chế độ: Xem trọn vẹn (Fit) - Click để Full màn hình"
-                    : "Chế độ: Full màn hình (Fill) - Click để Xem trọn vẹn"
-                }
+                onClick={() => setShowSoundPanel(!showSoundPanel)}
+                className={`p-4 rounded-xl transition-all ${
+                  showSoundPanel
+                    ? "bg-purple-100 border-2 border-purple-400 shadow-md"
+                    : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent hover:shadow"
+                }`}
+                title="Chọn âm thanh"
               >
-                {backgroundMode === "fit" ? (
-                  <Maximize2 size={18} className="text-purple-300" />
+                <Music
+                  size={28}
+                  className={
+                    showSoundPanel ? "text-purple-600" : "text-gray-600"
+                  }
+                />
+              </button>
+
+              {/* Audio Play/Stop Toggle */}
+              <button
+                onClick={handleToggleAudio}
+                className={`p-4 rounded-xl transition-all ${
+                  isAudioPlaying
+                    ? "bg-green-100 border-2 border-green-400 shadow-md"
+                    : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent hover:shadow"
+                }`}
+                title={isAudioPlaying ? "Tắt âm thanh" : "Bật âm thanh"}
+                disabled={soundTracks.every((t) => !t.selectedSound)}
+              >
+                {isAudioPlaying ? (
+                  <Volume2 size={28} className="text-green-600" />
                 ) : (
-                  <Minimize2 size={18} className="text-green-300" />
+                  <VolumeX size={28} className="text-gray-400" />
                 )}
               </button>
-            )}
-            <button
-              onClick={() => toggleFullscreen()}
-              className="btn-invisible header-btn p-2 rounded-lg text-white"
-              title="Toàn màn hình"
-            >
-              <Maximize size={18} />
-            </button>
-            <button
-              onClick={() => lockOrientation("landscape")}
-              className="btn-invisible header-btn p-2 rounded-lg text-white"
-              title="Khóa xoay ngang"
-            >
-              <Smartphone size={18} />
-            </button>
-          </div>
-        </div>
 
-        {/* Main Content - scrollable area */}
-        <div className="flex-1 flex items-center justify-center p-2 sm:p-4 overflow-y-auto overflow-x-hidden">
-          <div className="w-full max-w-4xl my-auto">
-            {/* Timer Display */}
-            <div className="text-center mb-6 sm:mb-12">
-              <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-white mb-2 sm:mb-4 drop-shadow-lg px-2">
-                {isWorkMode ? "Thời gian làm việc" : "Thời gian nghỉ ngơi"}
-              </h2>
-              <div className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-bold text-white drop-shadow-2xl mb-4 sm:mb-8">
-                {formatTime(timeLeft)}
-              </div>
+              {/* Volume Control Panel Toggle */}
+              <button
+                onClick={() => setShowVolumePanel(!showVolumePanel)}
+                className={`p-4 rounded-xl transition-all ${
+                  showVolumePanel
+                    ? "bg-blue-100 border-2 border-blue-400 shadow-md"
+                    : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent hover:shadow"
+                }`}
+                title="Điều chỉnh âm lượng"
+                disabled={!isAudioPlaying}
+              >
+                <Settings
+                  size={28}
+                  className={
+                    showVolumePanel ? "text-blue-600" : "text-gray-600"
+                  }
+                />
+              </button>
 
-              <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mb-4 sm:mb-8 px-2">
-                <Button
-                  onClick={handleStartPause}
-                  size="lg"
-                  className="min-w-[100px] sm:min-w-[120px] flex-shrink-0"
+              {/* Background Selection Panel Toggle */}
+              <button
+                onClick={() => setShowBackgroundPanel(!showBackgroundPanel)}
+                className={`p-4 rounded-xl transition-all ${
+                  showBackgroundPanel
+                    ? "bg-pink-100 border-2 border-pink-400 shadow-md"
+                    : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent hover:shadow"
+                }`}
+                title="Chọn background"
+              >
+                <ImageIcon
+                  size={28}
+                  className={
+                    showBackgroundPanel ? "text-pink-600" : "text-gray-600"
+                  }
+                />
+              </button>
+
+              {/* Background/Video Play/Stop Toggle */}
+              <button
+                onClick={handleToggleBackground}
+                className={`p-4 rounded-xl transition-all ${
+                  isBackgroundVisible
+                    ? "bg-orange-100 border-2 border-orange-400 shadow-md"
+                    : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent hover:shadow"
+                }`}
+                title={
+                  isBackgroundVisible ? "Tắt background" : "Bật background"
+                }
+                disabled={!selectedBackground}
+              >
+                <Film
+                  size={28}
+                  className={
+                    isBackgroundVisible ? "text-orange-600" : "text-gray-600"
+                  }
+                />
+              </button>
+
+              {/* Hide UI Button - when background is visible */}
+              {isBackgroundVisible && (
+                <button
+                  onClick={() => setIsUIHidden(true)}
+                  className="p-4 rounded-xl transition-all bg-gray-50 hover:bg-gray-100 border-2 border-transparent hover:shadow"
+                  title="Ẩn giao diện"
                 >
-                  {isRunning ? (
-                    <Pause size={20} className="sm:mr-2" />
-                  ) : (
-                    <Play size={20} className="sm:mr-2" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {isRunning ? "Tạm dừng" : "Bắt đầu"}
-                  </span>
-                </Button>
-                <Button
-                  onClick={handleReset}
-                  variant="secondary"
-                  size="lg"
-                  className="min-w-[100px] sm:min-w-[120px] flex-shrink-0"
-                >
-                  <RotateCcw size={20} className="sm:mr-2" />
-                  <span className="hidden sm:inline">Đặt lại</span>
-                </Button>
-                {isRunning && (
-                  <Button
-                    onClick={() => setIsUIHidden(true)}
-                    variant="secondary"
-                    size="lg"
-                    className="min-w-[100px] sm:min-w-[120px] flex-shrink-0"
-                  >
-                    <EyeOff size={20} className="sm:mr-2" />
-                    <span className="hidden sm:inline">Ẩn UI</span>
-                  </Button>
-                )}
-              </div>
+                  <Eye size={28} className="text-gray-600" />
+                </button>
+              )}
             </div>
+          </div>
 
-            {/* Controls - adaptive height for mobile */}
-            <div className="bg-white bg-opacity-95 rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4 sm:space-y-6 max-h-[50vh] sm:max-h-[70vh] md:max-h-none overflow-y-auto">
-              {/* Background Selection */}
-              <div>
-                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                  Background
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedBackground || ""}
-                    onChange={(e) =>
-                      setSelectedBackground(e.target.value || null)
-                    }
-                    className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-8 sm:pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white text-sm sm:text-base"
-                  >
-                    <option value="">Không có background</option>
-                    {animations.map((anim) => (
-                      <option key={anim.id} value={anim.id}>
-                        {anim.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
-                    size={20}
-                  />
-                </div>
+          {/* Sound Selection Panel */}
+          {showSoundPanel && (
+            <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Chọn âm thanh
+                </h3>
+                <Button
+                  onClick={handleAddSoundTrack}
+                  variant="secondary"
+                  size="sm"
+                >
+                  <Plus size={16} className="mr-1" />
+                  Thêm
+                </Button>
               </div>
 
-              {/* Sound Tracks */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-xs sm:text-sm font-medium text-gray-700">
-                    Âm thanh
-                  </label>
-                  <Button
-                    onClick={handleAddSoundTrack}
-                    variant="secondary"
-                    size="sm"
-                    className="text-xs sm:text-sm"
+              <div className="space-y-4">
+                {soundTracks.map((track) => (
+                  <div
+                    key={track.id}
+                    className="border border-gray-200 rounded-lg p-4 bg-gray-50"
                   >
-                    <Plus size={16} className="mr-1" />
-                    Thêm
-                  </Button>
-                </div>
-
-                <div className="space-y-4">
-                  {soundTracks.map((track, index) => (
-                    <div
-                      key={track.id}
-                      className="border border-gray-200 rounded-lg p-3 bg-gray-50"
-                    >
-                      <div className="flex items-start space-x-2 mb-3">
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                          <div className="relative">
-                            <select
-                              value={track.type}
-                              onChange={(e) =>
-                                handleSoundTrackChange(
-                                  track.id,
-                                  null,
-                                  e.target.value
-                                )
-                              }
-                              className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white text-sm"
-                            >
-                              <option value="single">Đơn</option>
-                              <option value="preset">Preset</option>
-                            </select>
-                            <ChevronDown
-                              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
-                              size={16}
-                            />
-                          </div>
-
-                          <div className="relative">
-                            <select
-                              value={track.selectedSound || ""}
-                              onChange={(e) =>
-                                handleSoundTrackChange(
-                                  track.id,
-                                  e.target.value || null,
-                                  track.type
-                                )
-                              }
-                              className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white text-sm"
-                            >
-                              <option value="">
-                                Chọn{" "}
-                                {track.type === "single" ? "sound" : "preset"}
-                              </option>
-                              {track.type === "single"
-                                ? sounds.map((sound) => (
-                                    <option key={sound.id} value={sound.id}>
-                                      {sound.name}
-                                    </option>
-                                  ))
-                                : presets.map((preset) => (
-                                    <option key={preset.id} value={preset.id}>
-                                      {preset.name}
-                                    </option>
-                                  ))}
-                            </select>
-                            <ChevronDown
-                              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
-                              size={16}
-                            />
-                          </div>
+                    <div className="flex items-start space-x-2">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <div className="relative">
+                          <select
+                            value={track.type}
+                            onChange={(e) =>
+                              handleSoundTrackChange(
+                                track.id,
+                                null,
+                                e.target.value
+                              )
+                            }
+                            className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white text-sm"
+                          >
+                            <option value="single">Đơn</option>
+                            <option value="preset">Preset</option>
+                          </select>
+                          <ChevronDown
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                            size={16}
+                          />
                         </div>
 
-                        {soundTracks.length > 1 && (
-                          <button
-                            onClick={() => handleRemoveSoundTrack(track.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                        <div className="relative">
+                          <select
+                            value={track.selectedSound || ""}
+                            onChange={(e) =>
+                              handleSoundTrackChange(
+                                track.id,
+                                e.target.value || null,
+                                track.type
+                              )
+                            }
+                            className="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white text-sm"
                           >
-                            <X size={16} />
-                          </button>
-                        )}
+                            <option value="">
+                              Chọn{" "}
+                              {track.type === "single" ? "sound" : "preset"}
+                            </option>
+                            {track.type === "single"
+                              ? sounds.map((sound) => (
+                                  <option key={sound.id} value={sound.id}>
+                                    {sound.name}
+                                  </option>
+                                ))
+                              : presets.map((preset) => (
+                                  <option key={preset.id} value={preset.id}>
+                                    {preset.name}
+                                  </option>
+                                ))}
+                          </select>
+                          <ChevronDown
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                            size={16}
+                          />
+                        </div>
                       </div>
 
-                      {/* Volume Control */}
+                      {soundTracks.length > 1 && (
+                        <button
+                          onClick={() => handleRemoveSoundTrack(track.id)}
+                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Volume Control Panel */}
+          {showVolumePanel && isAudioPlaying && (
+            <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                Điều chỉnh âm lượng
+              </h3>
+              <div className="space-y-4">
+                {soundTracks.map((track) => {
+                  if (!track.selectedSound) return null;
+
+                  const displayName =
+                    track.type === "single"
+                      ? sounds.find((s) => s.id === track.selectedSound)?.name
+                      : presets.find((p) => p.id === track.selectedSound)?.name;
+
+                  return (
+                    <div
+                      key={track.id}
+                      className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">
+                          {displayName || "Unknown"}
+                        </span>
+                        <span className="text-xs text-gray-600">
+                          {Math.round((track.volume || 1.0) * 100)}%
+                        </span>
+                      </div>
                       <div className="flex items-center space-x-3">
                         <Volume2
                           size={16}
@@ -719,95 +862,153 @@ function FocusPage() {
                           step="0.1"
                           value={track.volume || 1.0}
                           onChange={(e) =>
-                            handleSoundTrackChange(
+                            handleVolumeChange(
                               track.id,
-                              track.selectedSound,
-                              track.type,
                               parseFloat(e.target.value)
                             )
                           }
-                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
                         />
-                        <span className="text-xs text-gray-600 min-w-[35px]">
-                          {Math.round((track.volume || 1.0) * 100)}%
-                        </span>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Background Selection Panel */}
+          {showBackgroundPanel && (
+            <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                Chọn background
+              </h3>
+              <div className="relative">
+                <select
+                  value={selectedBackground || ""}
+                  onChange={(e) =>
+                    setSelectedBackground(e.target.value || null)
+                  }
+                  className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white"
+                >
+                  <option value="">Không có background</option>
+                  {animations.map((anim) => (
+                    <option key={anim.id} value={anim.id}>
+                      {anim.name} ({anim.type === "video" ? "Video" : "Ảnh"})
+                    </option>
                   ))}
+                </select>
+                <ChevronDown
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={20}
+                />
+              </div>
+
+              {selectedBackground && (
+                <div className="mt-4">
+                  <button
+                    onClick={toggleBackgroundMode}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <span className="text-sm font-medium text-gray-700">
+                      Chế độ hiển thị
+                    </span>
+                    <span className="text-sm text-purple-600 font-medium flex items-center gap-2">
+                      {backgroundMode === "fit" ? (
+                        <>
+                          <Maximize2 size={16} />
+                          Xem trọn vẹn
+                        </>
+                      ) : (
+                        <>
+                          <Minimize2 size={16} />
+                          Full màn hình
+                        </>
+                      )}
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Time Settings */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg mb-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Cài đặt thời gian
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Thời gian làm việc
+                </label>
+                <div className="relative">
+                  <select
+                    value={workTime}
+                    onChange={(e) => setWorkTime(Number(e.target.value))}
+                    className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white"
+                    disabled={isRunning}
+                  >
+                    {[15, 25, 30, 45, 60, 90].map((time) => (
+                      <option key={time} value={time}>
+                        {time} phút
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                    size={20}
+                  />
                 </div>
               </div>
 
-              {/* Time Settings */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                    Thời gian làm việc
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={workTime}
-                      onChange={(e) => setWorkTime(Number(e.target.value))}
-                      className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-8 sm:pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white text-sm sm:text-base"
-                      disabled={isRunning}
-                    >
-                      {[15, 25, 30, 45, 60, 90].map((time) => (
-                        <option key={time} value={time}>
-                          {time} phút
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
-                      size={20}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2">
-                    Thời gian nghỉ
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={breakTime}
-                      onChange={(e) => setBreakTime(Number(e.target.value))}
-                      className="w-full px-3 sm:px-4 py-2 sm:py-3 pr-8 sm:pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white text-sm sm:text-base"
-                      disabled={isRunning}
-                    >
-                      {[5, 10, 15, 20, 30].map((time) => (
-                        <option key={time} value={time}>
-                          {time} phút
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown
-                      className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
-                      size={20}
-                    />
-                  </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Thời gian nghỉ
+                </label>
+                <div className="relative">
+                  <select
+                    value={breakTime}
+                    onChange={(e) => setBreakTime(Number(e.target.value))}
+                    className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none appearance-none bg-white"
+                    disabled={isRunning}
+                  >
+                    {[5, 10, 15, 20, 30].map((time) => (
+                      <option key={time} value={time}>
+                        {time} phút
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"
+                    size={20}
+                  />
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* Session Management */}
-              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-3 sm:pt-4 border-t border-gray-200">
-                <Button
-                  onClick={() => setShowSaveModal(true)}
-                  variant="secondary"
-                  fullWidth
-                  className="text-xs sm:text-sm"
-                >
-                  <Save size={16} className="mr-1 sm:mr-2" />
-                  Lưu Session
-                </Button>
-                <Button
-                  onClick={() => setShowLoadModal(true)}
-                  variant="secondary"
-                  fullWidth
-                  className="text-xs sm:text-sm"
-                >
-                  Tải Session
-                </Button>
-              </div>
+          {/* Session Management */}
+          <div className="bg-white rounded-2xl p-6 shadow-lg">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              Quản lý Session
+            </h3>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowSaveModal(true)}
+                variant="secondary"
+                fullWidth
+              >
+                <Save size={16} className="mr-2" />
+                Lưu Session
+              </Button>
+              <Button
+                onClick={() => setShowLoadModal(true)}
+                variant="secondary"
+                fullWidth
+              >
+                Tải Session
+              </Button>
             </div>
           </div>
         </div>
