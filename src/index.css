@@ -396,40 +396,80 @@ button svg {
   transition: all 0.3s ease;
 }
 
-/* Cinema Video Player Styles */
-.video-player-cinema {
+/* Video Player Styles */
+.video-player-container {
   -webkit-user-select: none;
   -moz-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-.video-player-cinema video,
-.video-player-cinema img {
+.video-player-container video {
   -webkit-user-select: none;
   -moz-user-select: none;
   user-select: none;
-  pointer-events: none;
 }
 
-/* Smooth zoom and pan transitions */
-.video-player-cinema video,
-.video-player-cinema [style*="backgroundImage"] {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* Custom video progress bar */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-/* Prevent pull-to-refresh during zoom/pan */
-.video-player-cinema[style*="touch-action: none"] {
-  overscroll-behavior: none;
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-/* Cinema gradient overlay */
-.cinema-gradient {
-  background: linear-gradient(
-    to bottom,
-    rgba(0, 0, 0, 0.7) 0%,
-    transparent 20%,
-    transparent 80%,
-    rgba(0, 0, 0, 0.7) 100%
-  );
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
+}
+
+/* Hide video controls on mobile when using custom controls */
+video::-webkit-media-controls {
+  display: none !important;
+}
+
+video::-webkit-media-controls-enclosure {
+  display: none !important;
+}
+
+/* Video player controls animations */
+.video-controls-fade {
+  transition: opacity 0.3s ease-in-out;
+}
+
+/* Mobile optimizations for video player */
+@media (max-width: 768px) {
+  /* Make buttons larger on mobile */
+  .video-controls button {
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  /* Hide volume slider on very small screens */
+  @media (max-width: 480px) {
+    .volume-slider {
+      display: none;
+    }
+  }
 }
