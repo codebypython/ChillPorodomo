@@ -7,8 +7,6 @@ import {
   VolumeX,
   Maximize,
   Minimize,
-  ZoomIn,
-  ZoomOut,
 } from "lucide-react";
 
 function VideoPlayer({
@@ -20,22 +18,65 @@ function VideoPlayer({
 }) {
   const videoRef = useRef(null);
   const containerRef = useRef(null);
-  const touchStartDistance = useRef(0);
-  const initialScale = useRef(1);
+  const contentRef = useRef(null);
+  const touchRef = useRef({
+    startDistance: 0,
+    startScale: 1,
+    startX: 0,
+    startY: 0,
+    lastTap: 0,
+  });
 
   const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(0.5);
   const [isMuted, setIsMuted] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [scale, setScale] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [lastTap, setLastTap] = useState(0);
+  const [translate, setTranslate] = useState({ x: 0, y: 0 });
+  const [isFullyLoaded, setIsFullyLoaded] = useState(false);
 
   const controlsTimeoutRef = useRef(null);
 
-  // Auto-hide controls after 3 seconds
+  // Force viewport height on iOS Safari (hide address bar)
+  useEffect(() => {
+    // Set viewport height to window.innerHeight to account for address bar
+    const setVH = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty("--vh", `${vh}px`);
+    };
+
+    setVH();
+    window.addEventListener("resize", setVH);
+    window.addEventListener("orientationchange", setVH);
+
+    // Scroll to top to hide address bar on iOS
+    window.scrollTo(0, 1);
+    setTimeout(() => window.scrollTo(0, 0), 0);
+
+    // Mark as fully loaded after animations
+    setTimeout(() => setIsFullyLoaded(true), 300);
+
+    // Prevent body scroll
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalHeight = document.body.style.height;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.height = "100%";
+    document.body.style.width = "100%";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.height = originalHeight;
+      window.removeEventListener("resize", setVH);
+      window.removeEventListener("orientationchange", setVH);
+      document.documentElement.style.removeProperty("--vh");
+    };
+  }, []);
+
+  // Auto-hide controls
   useEffect(() => {
     const resetControlsTimer = () => {
       setShowControls(true);
@@ -58,46 +99,8 @@ function VideoPlayer({
     };
   }, [isPlaying]);
 
-  // Request fullscreen on mount (mobile)
-  useEffect(() => {
-    const enterFullscreen = async () => {
-      const container = containerRef.current;
-      if (!container) return;
-
-      try {
-        // Try to enter fullscreen
-        if (container.requestFullscreen) {
-          await container.requestFullscreen();
-        } else if (container.webkitRequestFullscreen) {
-          await container.webkitRequestFullscreen();
-        } else if (container.mozRequestFullScreen) {
-          await container.mozRequestFullScreen();
-        } else if (container.msRequestFullscreen) {
-          await container.msRequestFullscreen();
-        }
-      } catch (error) {
-        console.log("Fullscreen not available:", error);
-      }
-    };
-
-    enterFullscreen();
-
-    // Lock orientation if supported
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock("any").catch(() => {
-        // Orientation lock not supported
-      });
-    }
-
-    return () => {
-      // Cleanup
-      if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
-      }
-    };
-  }, []);
-
-  const handlePlayPause = () => {
+  const handlePlayPause = (e) => {
+    e?.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
 
@@ -119,7 +122,8 @@ function VideoPlayer({
     setIsMuted(newVolume === 0);
   };
 
-  const handleMuteToggle = () => {
+  const handleMuteToggle = (e) => {
+    e?.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
 
@@ -133,40 +137,54 @@ function VideoPlayer({
     }
   };
 
-  // Pinch to zoom
-  const handleTouchStart = (e) => {
+  const showControlsTemporarily = () => {
     setShowControls(true);
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+    }
+    if (isPlaying) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setShowControls(false);
+      }, 3000);
+    }
+  };
+
+  // Touch handlers for pinch zoom and pan
+  const handleTouchStart = (e) => {
+    showControlsTemporarily();
 
     if (e.touches.length === 2) {
       // Pinch zoom start
+      e.preventDefault();
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
       const distance = Math.hypot(
         touch2.clientX - touch1.clientX,
         touch2.clientY - touch1.clientY
       );
-      touchStartDistance.current = distance;
-      initialScale.current = scale;
+      touchRef.current.startDistance = distance;
+      touchRef.current.startScale = scale;
     } else if (e.touches.length === 1) {
-      // Single touch - check for double tap or drag
-      const currentTime = new Date().getTime();
-      const tapLength = currentTime - lastTap;
+      const currentTime = Date.now();
+      const tapGap = currentTime - touchRef.current.lastTap;
 
-      if (tapLength < 300 && tapLength > 0) {
-        // Double tap detected - toggle zoom
-        handleDoubleTap();
-      } else {
-        // Start drag if zoomed
-        if (scale > 1) {
-          setIsDragging(true);
-          setDragStart({
-            x: e.touches[0].clientX - position.x,
-            y: e.touches[0].clientY - position.y,
-          });
+      // Double tap detection
+      if (tapGap < 300 && tapGap > 0) {
+        e.preventDefault();
+        // Double tap to zoom in/out
+        if (scale === 1) {
+          setScale(2);
+        } else {
+          setScale(1);
+          setTranslate({ x: 0, y: 0 });
         }
+      } else if (scale > 1) {
+        // Single touch pan when zoomed
+        touchRef.current.startX = e.touches[0].clientX - translate.x;
+        touchRef.current.startY = e.touches[0].clientY - translate.y;
       }
 
-      setLastTap(currentTime);
+      touchRef.current.lastTap = currentTime;
     }
   };
 
@@ -181,245 +199,196 @@ function VideoPlayer({
         touch2.clientY - touch1.clientY
       );
 
-      const scaleChange = distance / touchStartDistance.current;
-      const newScale = Math.min(
-        Math.max(initialScale.current * scaleChange, 1),
-        5
+      const scaleChange = distance / touchRef.current.startDistance;
+      const newScale = Math.max(
+        1,
+        Math.min(touchRef.current.startScale * scaleChange, 4)
       );
       setScale(newScale);
-    } else if (e.touches.length === 1 && isDragging && scale > 1) {
+    } else if (e.touches.length === 1 && scale > 1) {
       // Pan when zoomed
       e.preventDefault();
-      const newX = e.touches[0].clientX - dragStart.x;
-      const newY = e.touches[0].clientY - dragStart.y;
+      const newX = e.touches[0].clientX - touchRef.current.startX;
+      const newY = e.touches[0].clientY - touchRef.current.startY;
 
-      // Limit panning to reasonable bounds
-      const maxOffset = 100 * scale;
-      setPosition({
-        x: Math.min(Math.max(newX, -maxOffset), maxOffset),
-        y: Math.min(Math.max(newY, -maxOffset), maxOffset),
+      // Limit pan to reasonable bounds
+      const maxX = (window.innerWidth * (scale - 1)) / 2;
+      const maxY = (window.innerHeight * (scale - 1)) / 2;
+
+      setTranslate({
+        x: Math.max(-maxX, Math.min(maxX, newX)),
+        y: Math.max(-maxY, Math.min(maxY, newY)),
       });
     }
   };
 
   const handleTouchEnd = () => {
-    setIsDragging(false);
-
-    // Reset position if scale is back to 1
+    // Reset translate if scale is 1
     if (scale <= 1) {
-      setPosition({ x: 0, y: 0 });
+      setTranslate({ x: 0, y: 0 });
     }
   };
 
-  const handleDoubleTap = () => {
-    if (scale === 1) {
-      setScale(2);
-    } else {
-      setScale(1);
-      setPosition({ x: 0, y: 0 });
+  const handleContainerClick = (e) => {
+    // Toggle controls on tap
+    if (e.target === containerRef.current || e.target === contentRef.current) {
+      showControlsTemporarily();
     }
   };
 
-  const handleZoomIn = () => {
-    setScale((prev) => Math.min(prev + 0.5, 5));
-    setShowControls(true);
-  };
-
-  const handleZoomOut = () => {
-    const newScale = Math.max(scale - 0.5, 1);
-    setScale(newScale);
-    if (newScale === 1) {
-      setPosition({ x: 0, y: 0 });
-    }
-    setShowControls(true);
-  };
-
-  const handleResetZoom = () => {
-    setScale(1);
-    setPosition({ x: 0, y: 0 });
-    setShowControls(true);
-  };
-
-  const handleShowControls = () => {
-    setShowControls(true);
-  };
-
-  const handleClose = async () => {
-    // Exit fullscreen before closing
-    if (document.fullscreenElement) {
-      try {
-        await document.exitFullscreen();
-      } catch (error) {
-        console.log("Exit fullscreen error:", error);
-      }
-    }
+  const handleClose = (e) => {
+    e?.stopPropagation();
     onClose();
+  };
+
+  const handleToggleMode = (e) => {
+    e?.stopPropagation();
+    onToggleMode();
+    showControlsTemporarily();
   };
 
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 w-full h-full bg-black z-[9999]"
+      className="fixed inset-0 w-full bg-black overflow-hidden"
       style={{
-        height: "100dvh",
-        touchAction: scale > 1 ? "none" : "auto",
+        height: "calc(var(--vh, 1vh) * 100)",
+        minHeight: "-webkit-fill-available",
+        zIndex: 9999,
+        touchAction: scale > 1 ? "none" : "manipulation",
+        WebkitUserSelect: "none",
+        userSelect: "none",
+        WebkitTapHighlightColor: "transparent",
       }}
-      onClick={handleShowControls}
+      onClick={handleContainerClick}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Video/Image Container */}
-      <div className="absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden">
+      {/* Video/Image Content */}
+      <div
+        ref={contentRef}
+        className="absolute inset-0 flex items-center justify-center"
+        style={{
+          transform: `scale(${scale}) translate(${translate.x / scale}px, ${
+            translate.y / scale
+          }px)`,
+          transition:
+            touchRef.current.startDistance > 0
+              ? "none"
+              : "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          willChange: "transform",
+        }}
+      >
         {videoUrl ? (
           <video
             ref={videoRef}
             src={videoUrl}
-            className="transition-transform duration-300 ease-out"
+            className="w-full h-full"
             style={{
-              maxWidth: backgroundMode === "fit" ? "100%" : "none",
-              maxHeight: backgroundMode === "fit" ? "100%" : "none",
-              width: backgroundMode === "fit" ? "auto" : "100%",
-              height: backgroundMode === "fit" ? "auto" : "100%",
               objectFit: backgroundMode === "fit" ? "contain" : "cover",
-              transform: `scale(${scale}) translate(${position.x / scale}px, ${
-                position.y / scale
-              }px)`,
-              cursor: scale > 1 ? "move" : "default",
+              pointerEvents: "none",
             }}
             autoPlay
             loop
             muted={isMuted}
             playsInline
             webkit-playsinline="true"
+            onLoadedMetadata={(e) => {
+              e.target.volume = volume;
+            }}
           />
         ) : imageUrl ? (
           <div
-            className="transition-transform duration-300 ease-out"
+            className="w-full h-full"
             style={{
-              maxWidth: backgroundMode === "fit" ? "100%" : "none",
-              maxHeight: backgroundMode === "fit" ? "100%" : "none",
-              width: backgroundMode === "fit" ? "auto" : "100vw",
-              height: backgroundMode === "fit" ? "auto" : "100vh",
               backgroundImage: `url(${imageUrl})`,
               backgroundSize: backgroundMode === "fit" ? "contain" : "cover",
               backgroundPosition: "center",
               backgroundRepeat: "no-repeat",
-              transform: `scale(${scale}) translate(${position.x / scale}px, ${
-                position.y / scale
-              }px)`,
-              cursor: scale > 1 ? "move" : "default",
+              pointerEvents: "none",
             }}
           />
         ) : null}
       </div>
 
-      {/* Controls Overlay */}
+      {/* Controls Overlay - iOS Style */}
       <div
-        className={`absolute inset-0 transition-opacity duration-300 ${
-          showControls ? "opacity-100" : "opacity-0 pointer-events-none"
+        className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${
+          showControls ? "opacity-100" : "opacity-0"
         }`}
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 20%, transparent 80%, rgba(0,0,0,0.7) 100%)",
+            "linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, transparent 25%, transparent 75%, rgba(0,0,0,0.6) 100%)",
         }}
       >
-        {/* Top Controls */}
+        {/* Top Bar */}
         <div
-          className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between"
+          className="absolute top-0 left-0 right-0 flex items-center justify-between p-4 pointer-events-auto"
           style={{
-            paddingTop: "calc(env(safe-area-inset-top) + 1rem)",
-            paddingLeft: "calc(env(safe-area-inset-left) + 1rem)",
-            paddingRight: "calc(env(safe-area-inset-right) + 1rem)",
+            paddingTop: `max(1rem, env(safe-area-inset-top))`,
           }}
         >
           <button
             onClick={handleClose}
-            className="p-3 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors active:scale-95"
+            aria-label="Close"
           >
             <X size={24} />
           </button>
 
-          <div className="flex gap-2">
+          <button
+            onClick={handleToggleMode}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors active:scale-95"
+            aria-label={backgroundMode === "fit" ? "Fill Screen" : "Fit Screen"}
+          >
+            {backgroundMode === "fit" ? (
+              <Maximize size={20} />
+            ) : (
+              <Minimize size={20} />
+            )}
+          </button>
+        </div>
+
+        {/* Center Play/Pause */}
+        {!isPlaying && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-auto">
             <button
-              onClick={onToggleMode}
-              className="p-3 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all"
+              onClick={handlePlayPause}
+              className="w-20 h-20 flex items-center justify-center rounded-full bg-black/60 backdrop-blur-md text-white hover:bg-black/70 transition-all active:scale-95"
+              aria-label="Play"
             >
-              {backgroundMode === "fit" ? (
-                <Maximize size={20} />
-              ) : (
-                <Minimize size={20} />
-              )}
+              <Play size={40} className="ml-1" />
             </button>
           </div>
-        </div>
-
-        {/* Center Play Button */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <button
-            onClick={handlePlayPause}
-            className="pointer-events-auto p-6 rounded-full bg-black bg-opacity-60 backdrop-blur-lg text-white hover:bg-opacity-80 transition-all"
-          >
-            {isPlaying ? <Pause size={48} /> : <Play size={48} />}
-          </button>
-        </div>
-
-        {/* Zoom Controls - Bottom Right */}
-        <div
-          className="absolute bottom-24 right-4 flex flex-col gap-2"
-          style={{
-            paddingBottom: "calc(env(safe-area-inset-bottom))",
-            paddingRight: "calc(env(safe-area-inset-right))",
-          }}
-        >
-          <button
-            onClick={handleZoomIn}
-            disabled={scale >= 5}
-            className="p-3 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all disabled:opacity-30"
-          >
-            <ZoomIn size={20} />
-          </button>
-
-          {scale > 1 && (
-            <button
-              onClick={handleResetZoom}
-              className="p-2 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all text-xs"
-            >
-              1x
-            </button>
-          )}
-
-          <button
-            onClick={handleZoomOut}
-            disabled={scale <= 1}
-            className="p-3 rounded-full bg-black bg-opacity-50 backdrop-blur-lg text-white hover:bg-opacity-70 transition-all disabled:opacity-30"
-          >
-            <ZoomOut size={20} />
-          </button>
-        </div>
+        )}
 
         {/* Bottom Controls */}
-        {videoUrl && (
-          <div
-            className="absolute bottom-0 left-0 right-0 px-4 pb-4"
-            style={{
-              paddingBottom: "calc(env(safe-area-inset-bottom) + 1rem)",
-              paddingLeft: "calc(env(safe-area-inset-left) + 1rem)",
-              paddingRight: "calc(env(safe-area-inset-right) + 1rem)",
-            }}
-          >
-            <div className="flex items-center gap-4">
+        <div
+          className="absolute bottom-0 left-0 right-0 pointer-events-auto"
+          style={{
+            paddingBottom: `max(1rem, env(safe-area-inset-bottom))`,
+          }}
+        >
+          {videoUrl && (
+            <div className="px-6 pb-4 flex items-center gap-4">
               <button
                 onClick={handlePlayPause}
-                className="text-white hover:scale-110 transition-transform"
+                className="w-10 h-10 flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-95"
+                aria-label={isPlaying ? "Pause" : "Play"}
               >
-                {isPlaying ? <Pause size={24} /> : <Play size={24} />}
+                {isPlaying ? (
+                  <Pause size={28} />
+                ) : (
+                  <Play size={28} className="ml-0.5" />
+                )}
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3 flex-1">
                 <button
                   onClick={handleMuteToggle}
-                  className="text-white hover:scale-110 transition-transform"
+                  className="w-10 h-10 flex items-center justify-center text-white hover:scale-110 transition-transform active:scale-95"
+                  aria-label={isMuted ? "Unmute" : "Mute"}
                 >
                   {isMuted || volume === 0 ? (
                     <VolumeX size={24} />
@@ -427,42 +396,47 @@ function VideoPlayer({
                     <Volume2 size={24} />
                   )}
                 </button>
+
                 <input
                   type="range"
                   min="0"
                   max="1"
-                  step="0.1"
+                  step="0.05"
                   value={isMuted ? 0 : volume}
                   onChange={handleVolumeChange}
-                  className="w-20 h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-white"
                   onClick={(e) => e.stopPropagation()}
+                  className="flex-1 h-1 bg-white/30 rounded-full appearance-none cursor-pointer accent-white"
+                  style={{
+                    maxWidth: "150px",
+                  }}
+                  aria-label="Volume"
                 />
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        {/* Zoom Level Indicator */}
+        {/* Zoom Indicator */}
         {scale > 1 && (
           <div
-            className="absolute top-20 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-full bg-black bg-opacity-70 backdrop-blur-lg text-white text-sm"
+            className="absolute top-20 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-full bg-black/60 backdrop-blur-md text-white text-sm font-medium"
             style={{
-              paddingTop: "calc(env(safe-area-inset-top) + 0.5rem)",
+              top: `calc(max(5rem, env(safe-area-inset-top) + 3rem))`,
             }}
           >
-            {scale.toFixed(1)}x
+            {scale.toFixed(1)}×
           </div>
         )}
 
         {/* Hint Text */}
-        {scale === 1 && (
+        {isFullyLoaded && scale === 1 && showControls && (
           <div
-            className="absolute bottom-32 left-1/2 transform -translate-x-1/2 text-white text-sm opacity-60 text-center px-4"
+            className="absolute bottom-24 left-1/2 transform -translate-x-1/2 px-4 py-2 text-white/70 text-sm text-center whitespace-nowrap"
             style={{
-              paddingBottom: "calc(env(safe-area-inset-bottom))",
+              bottom: `calc(6rem + env(safe-area-inset-bottom))`,
             }}
           >
-            Chụm 2 ngón tay hoặc double tap để zoom
+            Chụm 2 ngón hoặc chạm 2 lần để zoom
           </div>
         )}
       </div>
