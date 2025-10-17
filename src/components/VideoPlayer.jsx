@@ -26,6 +26,7 @@ export default function VideoPlayer({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [lastTouch, setLastTouch] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const controlsTimeoutRef = useRef(null);
 
   useEffect(() => {
@@ -41,43 +42,110 @@ export default function VideoPlayer({
   useEffect(() => {
     if (videoRef.current && isVisible && videoUrl) {
       videoRef.current.play().catch(console.error);
-      if (window.innerWidth <= 768) {
-        requestFullscreen();
-      }
     }
   }, [isVisible, videoUrl]);
 
+  // Better mobile viewport handling
   useEffect(() => {
     if (isVisible) {
+      // Add class to body for CSS targeting
+      document.body.classList.add('video-player-active');
+      
+      // Lock scroll and fix body
       document.body.style.overflow = "hidden";
       document.body.style.position = "fixed";
       document.body.style.width = "100%";
-      document.body.style.height = "100%";
-    } else {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.height = "";
-    }
+      document.body.style.top = "0";
+      document.body.style.left = "0";
+      
+      // iOS specific: prevent bounce scroll
+      document.body.style.overscrollBehavior = "none";
+      document.body.style.WebkitOverflowScrolling = "touch";
+      
+      // Set viewport meta for mobile
+      let viewport = document.querySelector("meta[name=viewport]");
+      const originalViewportContent = viewport?.getAttribute("content") || "";
+      if (viewport) {
+        viewport.setAttribute(
+          "content",
+          "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+        );
+      }
 
-    return () => {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.height = "";
-    };
+      return () => {
+        document.body.classList.remove('video-player-active');
+        document.body.style.overflow = "";
+        document.body.style.position = "";
+        document.body.style.width = "";
+        document.body.style.top = "";
+        document.body.style.left = "";
+        document.body.style.overscrollBehavior = "";
+        document.body.style.WebkitOverflowScrolling = "";
+        
+        // Restore original viewport
+        if (viewport && originalViewportContent) {
+          viewport.setAttribute("content", originalViewportContent);
+        }
+      };
+    }
   }, [isVisible]);
 
+  // Enhanced fullscreen for mobile
   const requestFullscreen = () => {
     if (containerRef.current) {
       const elem = containerRef.current;
+      
+      // Try native fullscreen API
       if (elem.requestFullscreen) {
-        elem.requestFullscreen().catch(console.error);
+        elem.requestFullscreen().then(() => {
+          setIsFullscreen(true);
+        }).catch((err) => {
+          console.warn("Fullscreen request failed:", err);
+          // Fallback: just hide browser UI by scrolling
+          if (window.innerWidth <= 768) {
+            window.scrollTo(0, 1);
+          }
+        });
       } else if (elem.webkitRequestFullscreen) {
         elem.webkitRequestFullscreen();
+        setIsFullscreen(true);
+      } else if (elem.webkitEnterFullscreen) {
+        // iOS Safari video element
+        elem.webkitEnterFullscreen();
+        setIsFullscreen(true);
+      } else {
+        // Fallback for browsers that don't support fullscreen
+        if (window.innerWidth <= 768) {
+          window.scrollTo(0, 1);
+        }
       }
     }
   };
+  
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      );
+      setIsFullscreen(isCurrentlyFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
 
   const togglePlayPause = (e) => {
     e.stopPropagation();
@@ -178,11 +246,28 @@ export default function VideoPlayer({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-50 bg-black"
+      className="fixed inset-0 z-50 bg-black video-player-container"
       style={{
         width: "100vw",
         height: "100vh",
+        // Use dynamic viewport height for mobile
+        height: "100dvh",
+        minHeight: "-webkit-fill-available",
         touchAction: scale > 1 ? "none" : "auto",
+        // Ensure proper positioning on mobile
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        // Prevent scrolling
+        overflow: "hidden",
+        // Hardware acceleration
+        transform: "translateZ(0)",
+        WebkitTransform: "translateZ(0)",
+        willChange: "transform",
+        // iOS Safari specific
+        WebkitOverflowScrolling: "touch",
+        overscrollBehavior: "none",
       }}
       onClick={handleContainerClick}
       onTouchStart={handleTouchStart}
@@ -203,19 +288,30 @@ export default function VideoPlayer({
           <video
             ref={videoRef}
             src={videoUrl}
-            className="max-w-full max-h-full"
+            className="max-w-full max-h-full video-player-element"
             style={{
               objectFit: mode === "fit" ? "contain" : "cover",
               width: mode === "fill" ? "100%" : "auto",
               height: mode === "fill" ? "100%" : "auto",
+              maxWidth: "100%",
+              maxHeight: "100%",
+              // Ensure video fills container properly
+              display: "block",
             }}
             autoPlay
             loop
             muted={isMuted}
             playsInline
             webkit-playsinline="true"
+            // Additional attributes for better mobile support
+            x5-video-player-type="h5"
+            x5-video-player-fullscreen="true"
+            x5-video-orientation="portraint"
+            preload="auto"
             onPlay={() => setIsPlaying(true)}
             onPause={() => setIsPlaying(false)}
+            // Prevent context menu on long press
+            onContextMenu={(e) => e.preventDefault()}
           />
         )}
         {!videoUrl && imageUrl && (

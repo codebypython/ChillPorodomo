@@ -2,6 +2,29 @@
 
 Ứng dụng web giúp bạn tập trung làm việc hiệu quả bằng kỹ thuật Pomodoro, kết hợp với âm thanh và hình ảnh thư giãn.
 
+## 🎉 NEW: Mobile Video Optimization (v2.9.0)
+
+### 📱 Trải Nghiệm Video Toàn Màn Hình Trên Mobile
+
+Đã cải thiện hoàn toàn cách phát video trên mobile devices:
+
+- ✅ **Video chiếm 100% màn hình** - không còn thanh địa chỉ browser
+- ✅ **Dynamic Viewport Height** - tự động adjust theo device
+- ✅ **iOS Safari Optimized** - xử lý đặc biệt cho iPhone/iPad
+- ✅ **Android Chrome Optimized** - smooth experience trên Android
+- ✅ **Hardware Acceleration** - phát video mượt mà 60fps
+- ✅ **Fullscreen API** - với nhiều fallback cho compatibility
+- ✅ **Zoom & Pan** - pinch to zoom, pan khi zoom
+- ✅ **Auto-hide Controls** - controls tự động ẩn sau 3s
+- ✅ **Orientation Support** - tự động adjust khi xoay màn hình
+- ✅ **Safe Area Support** - xử lý đúng với iPhone notch
+
+📚 **Xem chi tiết**: 
+- [Quick Start Guide](./QUICK_START_MOBILE_VIDEO.md) - Test ngay trên mobile
+- [Full Documentation](./MOBILE_VIDEO_OPTIMIZATION_GUIDE.md) - Technical details
+- [Implementation Summary](./IMPLEMENTATION_SUMMARY.md) - Overview
+- [Comparison Analysis](./COMPARISON_ANALYSIS.md) - So sánh với ChillTimer
+
 ## ✨ Tính năng
 
 ### 🎨 Kho Animation
