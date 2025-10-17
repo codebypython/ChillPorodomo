@@ -33,6 +33,7 @@ import {
   addSavedSession,
   deleteSavedSession,
 } from "../utils/storage";
+import { createBlobURL } from "../utils/indexedDB";
 import { audioManager } from "../utils/audio";
 import { toggleFullscreen } from "../utils/fullscreen";
 
@@ -95,8 +96,16 @@ function FocusPage() {
       audioManager.stopAll();
       if (timerRef.current) clearInterval(timerRef.current);
       if (breakTimerRef.current) clearInterval(breakTimerRef.current);
+      
+      // Clean up blob URLs to prevent memory leaks
+      if (backgroundVideo && backgroundVideo.startsWith('blob:')) {
+        URL.revokeObjectURL(backgroundVideo);
+      }
+      if (backgroundImage && backgroundImage.startsWith('blob:')) {
+        URL.revokeObjectURL(backgroundImage);
+      }
     };
-  }, []);
+  }, [backgroundVideo, backgroundImage]);
 
   // ESC key to toggle UI visibility
   useEffect(() => {
@@ -362,19 +371,32 @@ function FocusPage() {
       .padStart(2, "0")}`;
   };
 
-  // Background data
+  // Background data with Blob URL conversion
   const selectedBackgroundData = selectedBackground
     ? animations.find((a) => a.id === selectedBackground)
     : null;
 
+  // Convert blob to blob URL if needed
+  const getProcessedURL = (data) => {
+    if (!data) return null;
+    
+    // If it's stored as Blob (not base64 or http URL)
+    if (data.isBlob && data.url instanceof Blob) {
+      return createBlobURL(data.url);
+    }
+    
+    // Otherwise return the URL as-is (base64 or http URL)
+    return data.url;
+  };
+
   const backgroundImage =
     selectedBackgroundData && selectedBackgroundData.type !== "video"
-      ? selectedBackgroundData.url
+      ? getProcessedURL(selectedBackgroundData)
       : null;
 
   const backgroundVideo =
     selectedBackgroundData && selectedBackgroundData.type === "video"
-      ? selectedBackgroundData.url
+      ? getProcessedURL(selectedBackgroundData)
       : null;
 
   return (

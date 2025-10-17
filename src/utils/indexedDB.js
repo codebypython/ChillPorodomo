@@ -267,7 +267,7 @@ export const deleteSoundFromDB = async (id) => {
   }
 }
 
-// Utility: Convert file to base64
+// Utility: Convert file to base64 (for small files)
 export const fileToBase64 = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -277,9 +277,28 @@ export const fileToBase64 = (file) => {
   })
 }
 
+// Utility: Store file as Blob in IndexedDB (for large files like videos)
+export const fileToBlob = async (file) => {
+  // Just return the file blob itself
+  // IndexedDB can store Blobs directly
+  return file
+}
+
+// Utility: Create Blob URL from stored blob
+export const createBlobURL = (blob) => {
+  if (!blob) return null
+  return URL.createObjectURL(blob)
+}
+
 // Utility: Check file size
 export const isFileSizeValid = (file, maxSizeMB = 50) => {
   const maxSize = maxSizeMB * 1024 * 1024 // Convert to bytes
   return file.size <= maxSize
+}
+
+// Utility: Determine if file should use Blob storage (videos, large files)
+export const shouldUseBlob = (file) => {
+  // Use Blob for videos or files larger than 5MB
+  return file.type.startsWith('video/') || file.size > 5 * 1024 * 1024
 }
 

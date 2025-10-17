@@ -17,7 +17,7 @@ import {
   updateAnimation,
   deleteAnimation,
 } from "../utils/storage";
-import { fileToBase64, isFileSizeValid } from "../utils/indexedDB";
+import { fileToBase64, fileToBlob, shouldUseBlob, isFileSizeValid, createBlobURL } from "../utils/indexedDB";
 
 function AnimationLibrary() {
   const navigate = useNavigate();
@@ -130,11 +130,27 @@ function AnimationLibrary() {
 
     setIsUploading(true);
     try {
-      const base64 = await fileToBase64(file);
+      let fileData;
+      let useBlob = false;
+      
+      // Use Blob storage for videos and large files (better for mobile)
+      if (shouldUseBlob(file)) {
+        fileData = await fileToBlob(file);
+        useBlob = true;
+        console.log(`Using Blob storage for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+      } else {
+        // Use base64 for small images
+        fileData = await fileToBase64(file);
+        console.log(`Using base64 for ${file.name} (${(file.size / 1024).toFixed(2)}KB)`);
+      }
+      
       setFormData({
         ...formData,
-        url: base64,
+        url: fileData,
         type: fileType,
+        isBlob: useBlob, // Flag to indicate blob storage
+        fileName: file.name,
+        fileSize: file.size,
       });
       alert('Upload thành công! Vui lòng nhấn "Thêm mới" để lưu.');
     } catch (error) {
@@ -146,16 +162,27 @@ function AnimationLibrary() {
   };
 
   const renderMediaPreview = (animation) => {
+    // Convert blob to blob URL if needed
+    const getPreviewURL = (anim) => {
+      if (anim.isBlob && anim.url instanceof Blob) {
+        return createBlobURL(anim.url);
+      }
+      return anim.url;
+    };
+    
+    const previewURL = getPreviewURL(animation);
+    
     if (animation.type === "video") {
       return (
         <video
-          src={animation.url}
+          src={previewURL}
           className="w-full h-full object-cover"
           loop
           muted
           autoPlay
           playsInline
           onError={(e) => {
+            console.error("Video preview error:", e);
             e.target.style.display = "none";
           }}
         />
@@ -163,7 +190,7 @@ function AnimationLibrary() {
     } else {
       return (
         <img
-          src={animation.url}
+          src={previewURL}
           alt={animation.name}
           className="w-full h-full object-cover"
           onError={(e) => {
@@ -301,13 +328,17 @@ function AnimationLibrary() {
             </label>
             <input
               type="text"
-              value={formData.url.startsWith("data:") ? "" : formData.url}
+              value={
+                formData.isBlob ? "[File uploaded - using Blob storage]" :
+                formData.url.startsWith("data:") ? "" : 
+                formData.url
+              }
               onChange={(e) =>
-                setFormData({ ...formData, url: e.target.value })
+                setFormData({ ...formData, url: e.target.value, isBlob: false })
               }
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-400 focus:border-transparent outline-none mb-2"
               placeholder="https://example.com/image.gif"
-              disabled={isUploading}
+              disabled={isUploading || formData.isBlob}
             />
             <div className="text-center text-gray-500 text-sm mb-2">hoặc</div>
             <input
@@ -334,19 +365,23 @@ function AnimationLibrary() {
               <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden">
                 {formData.type === "video" ? (
                   <video
-                    src={formData.url}
+                    src={formData.isBlob && formData.url instanceof Blob 
+                      ? createBlobURL(formData.url) 
+                      : formData.url}
                     className="w-full h-full object-cover"
                     controls
                     loop
                     muted
                     playsInline
                     onError={(e) => {
-                      console.error("Video preview error");
+                      console.error("Video preview error:", e);
                     }}
                   />
                 ) : (
                   <img
-                    src={formData.url}
+                    src={formData.isBlob && formData.url instanceof Blob 
+                      ? createBlobURL(formData.url) 
+                      : formData.url}
                     alt="Preview"
                     className="w-full h-full object-cover"
                     onError={(e) => {
@@ -356,6 +391,13 @@ function AnimationLibrary() {
                   />
                 )}
               </div>
+              {formData.isBlob && formData.fileName && (
+                <p className="text-xs text-gray-600 mt-2">
+                  📁 {formData.fileName} ({(formData.fileSize / 1024 / 1024).toFixed(2)}MB)
+                  <br />
+                  <span className="text-green-600">✓ Sử dụng Blob storage (tối ưu cho mobile)</span>
+                </p>
+              )}
             </div>
           )}
 
