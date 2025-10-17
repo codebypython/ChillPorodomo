@@ -47,47 +47,46 @@ export default function VideoPlayer({
 
   // Better mobile viewport handling
   useEffect(() => {
-    if (isVisible) {
-      // Add class to body for CSS targeting
-      document.body.classList.add('video-player-active');
-      
-      // Lock scroll and fix body
-      document.body.style.overflow = "hidden";
-      document.body.style.position = "fixed";
-      document.body.style.width = "100%";
-      document.body.style.top = "0";
-      document.body.style.left = "0";
-      
-      // iOS specific: prevent bounce scroll
-      document.body.style.overscrollBehavior = "none";
-      document.body.style.WebkitOverflowScrolling = "touch";
-      
-      // Set viewport meta for mobile
-      let viewport = document.querySelector("meta[name=viewport]");
-      const originalViewportContent = viewport?.getAttribute("content") || "";
-      if (viewport) {
-        viewport.setAttribute(
-          "content",
-          "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-        );
-      }
+    if (!isVisible) return;
 
-      return () => {
-        document.body.classList.remove('video-player-active');
-        document.body.style.overflow = "";
-        document.body.style.position = "";
-        document.body.style.width = "";
-        document.body.style.top = "";
-        document.body.style.left = "";
-        document.body.style.overscrollBehavior = "";
-        document.body.style.WebkitOverflowScrolling = "";
-        
-        // Restore original viewport
-        if (viewport && originalViewportContent) {
-          viewport.setAttribute("content", originalViewportContent);
-        }
-      };
+    // Store original values
+    const viewport = document.querySelector("meta[name=viewport]");
+    const originalViewportContent = viewport?.getAttribute("content") || "";
+
+    // Lock body scroll
+    document.body.classList.add('video-player-active');
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    document.body.style.top = "0";
+    document.body.style.left = "0";
+    document.body.style.overscrollBehavior = "none";
+    document.body.style.WebkitOverflowScrolling = "touch";
+    
+    // Update viewport meta for mobile
+    if (viewport) {
+      viewport.setAttribute(
+        "content",
+        "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+      );
     }
+
+    // Cleanup function
+    return () => {
+      document.body.classList.remove('video-player-active');
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.overscrollBehavior = "";
+      document.body.style.WebkitOverflowScrolling = "";
+      
+      // Restore original viewport
+      if (viewport && originalViewportContent) {
+        viewport.setAttribute("content", originalViewportContent);
+      }
+    };
   }, [isVisible]);
 
   // Enhanced fullscreen for mobile

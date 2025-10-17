@@ -116,7 +116,7 @@ export const updatePreset = (id, updates) => {
 export const deletePreset = (id) => {
   const presets = getPresets()
   const filtered = presets.filter(p => p.id !== id)
-  savePresets(presets)
+  savePresets(filtered) // Fixed: save filtered, not presets
   return true
 }
 
